@@ -1,17 +1,13 @@
-# CausalIQ Repo Template - Development Roadmap
+# CausalIQ Discovery - Development Roadmap
 
-**Last updated**: November 21, 2025  
+**Last updated**: May 15, 2026  
 
 This project roadmap fits into the [overall ecosystem roadmap](https:/https://causaliq.org/projects/ecosystem_roadmap/)
 
-## 🎯 Current Release
+## 🎯 Under Development
 
-**✅ BACKGROUND**: 1.1 Maintenance
+- **Release v1.0.0 Foundation**: Support for stable Tabu and HC, bnlearn and Tetrad/FGES without knowledge
 
-Commits:
-
-- `4a1b021` fix: change template shorthand CLI command from "crt" to "cqcrt"
-- `67cef98` fix: default CI testing to just Python 3.11 on Ubuntu
 
 ---
 
@@ -19,14 +15,12 @@ Commits:
 
 *See Git commit history for detailed implementation progress*
 
-- 📋 **1.0 Foundation**: ready for use as template for new CausalIQ repos
+- none
 
 
 ## 🛣️ Upcoming Implementation
 
-### Release 1.1: Maintenance
-**Key Deliverables**: Maintenance 
 
-**Commit 1.1.0: Maintenance Task**
+- **Release v2.0.0 Knowledge**: Structure learning supported by simulated human experts
 
-- [ ] **maintenance** - as required
+- **Release v3.0.0 More Algorithms**: Expand the range and type of algorithms supported

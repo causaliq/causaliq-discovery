@@ -1,54 +1,62 @@
-# causaliq-repo-template
+# causaliq-discovery
 
 ![Python Versions](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
 
-This is a template for **creating new CausalIQ repos** which provides a new **capability** and follows CausalIQ development practices. It is part of the [CausalIQ ecosystem](https:/causaliq.org/) for intelligent causal discovery.
-
+Advanced algorithms for learning causal structures from data and human & LLM-derived knowledge. This is part of the [CausalIQ ecosystem](https:https://causaliq.org/projects/)
 
 ## Status
 
-🚧 **Active Development** 
+🚧 **Active Development** - This repository is currently in active development, which involves:
 
-- This repository is currently in active development. It will be updated periodically to align with the latest approaches used in CausalIQ repos.
-- New repos within the CausalIQ project should follow the naming convention causaliq-[newcapability], e.g. "causaliq-discovery" or "causaliq-analysis".
-
+- defining an intuitive, flexible, interface which supports all the algorithms supported by LLM and human knowledge.
+- migrating score-based greedy algorithms from the legacy monolithic [discovery repo](https://github.com/causaliq/discovery)
+- supporting bnlearn and Tetrad algorithms used in existing [CausalIQ papers](https://causaliq.org/papers/)
+- extending the breadth and depth of algorithm coverage to cover: a larger selection of score, constraint and hybrid algorithms as well as continuous optimisation and time-series approaches 
+- enabling all algorithms to be used within [CausalIQ Workflows](https://causaliq.org/projects/workflow/)
 
 ## Features
 
-Completed releases:
+✅ **Implemented Releases**
 
-- **Release v1.0.0 Foundation**: ready for use as template for new CausalIQ repos
+- none
 
-Planned releases:
+*See Git commit history for detailed implementation progress*
 
-- **Release v1.1.0 Maintenance**: Maintenance to include new features into template
+🛣️ Upcoming Releases
+
+- **Release v1.0.0 Foundation**: Support for stable Tabu and HC, bnlearn and Tetrad/FGES without knowledge
+
+- **Release v2.0.0 Knowledge**: Structure learning supported by simulated human experts
+
+- **Release v3.0.0 More Algorithms**: Expand the range and type of algorithms supported
+
 
 ### Feature Overview
 
-- 📁 **Standardised project structure**: following current best practices
-- ⌨️ **CLI Interface**: An initial dummy command-line interface.
-- 📖 **Documentation framework**: using mkdocs with shared CausalIQ branding.
-- 🐍 **Python setup**: providing virtual environments for Python 3.9, 3.10, 3.11 and 3.12.
-- 🔬 **pytest test framework**: for unit, functional and integration testing including code coverage.
-- 🔄 **Continuous Integration testing**: across Python versions and operating systems using GitHub actions 
+- 🧩 **Standardised API**: for running all structure learning algorithms
+- 🧠 **Knowledge injection**: common framework for injecting knowledge into the learning process
+- 🕵️ **Full reporting**: complete reporting of algorithm hypeparameters and learning process
+- 🤖 **Workflows**: inclusion in causal discovery, analysis and inference workflows
+
 
 
 ### Usage
 
-Full instructions on using this as a template to start a new CausalIQ repo are given [here](docs/userguide/template.md)
+_to be defined_
 
 ---
 
-## Upcoming Key Innovations
-
-### 🤷 None planned
-- **not applicable** - for this repo template, but will be for concrete projects
-
 ## Integration with CausalIQ Ecosystem
 
-- 💯 **All CausalIQ projects** - this repo template is used as a starting point for all CausalIQ repos.
+- ⚙️ **CausalIQ Core** defines graph and BN objects
+- 🔢 **CausalIQ Data** provides data objects that support randomisation and subsampling and capabilities to score graphs
+- 🧠 **CausalIQ Knowledge** provides knowledge objects that guide or constrain the causal discovery
+- 🤖 **CausalIQ Workflows**: causal discovery can be included in workflows
+- 🔮 **CausalIQ Whatif** is called by this package to perform causal prediction.
+- 🔄 **Zenodo Synchronisation** is used by this package to download datasets and upload results.
+- 🧪 CausalIQ Papers are defined in terms of CausalIQ Workflows allowing the reproduction of experiments, results and published paper assets created by the CausalIQ ecosystem.
 
 ## LLM Support
 
@@ -70,15 +78,15 @@ so that the legacy repo can use the migrated code instead.
 ### Prerequisites
 
 - Git 
-- Latest stable versions of Python 3.9, 3.10. 3.11 and 3.12
+- Latest stable versions of Python 3.9, 3.10. 3.11, 3.12 and 3.13.
 
 
 ### Clone the new repo locally and check that it works
 
-Clone the causaliq-newcapability repo locally as normal
+Clone the causaliq-discovery repo locally as normal
 
 ```bash
-git clone https://github.com/causaliq/causaliq-newcapability.git
+git clone https://github.com/causaliq/causaliq-discovery.git
 ```
 
 Set up the Python virtual environments and activate the default Python virtual environment. You may see
@@ -90,7 +98,7 @@ scripts/setup-env -Install
 scripts/activate
 ```
 
-Check that the causaliq-newcapability CLI is working, check that all CI tests pass, and start up the local mkdocs webserver. There should be no errors  reported in any of these.
+Check that the causaliq-discovery CLI is working, check that all CI tests pass, and start up the local mkdocs webserver. There should be no errors  reported in any of these.
 
 ```text
 causaliq-newcapability --help
@@ -119,7 +127,7 @@ This repository is part of the CausalIQ ecosystem. For development setup:
 
 ---
 
-**Supported Python Versions**: 3.9, 3.10, 3.11, 3.12  
+**Supported Python Versions**: 3.9, 3.10, 3.11, 3.12, 3.13
 **Default Python Version**: 3.11  
 **License**: MIT
 
