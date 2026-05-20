@@ -7,6 +7,7 @@ monkeypatch only works on curent process, so CLI runner must be invoked
 using standalone=False
 """
 
+import pandas as pd
 from click.testing import CliRunner
 from pytest import fixture
 
@@ -21,7 +22,7 @@ def cli_runner():
     return CliRunner()
 
 
-# Test missing required NAME argument
+# Test missing required --input argument exits with error.
 def test_cli_missing_name_argument():
     runner = CliRunner()
     result = runner.invoke(cli, [])
@@ -29,28 +30,49 @@ def test_cli_missing_name_argument():
     assert "Missing argument" in result.output or "Usage:" in result.output
 
 
-# Test help is shown when no arguments provided
+# Test no args shows usage information with required options listed.
 def test_cli_no_args_shows_usage():
     runner = CliRunner()
     result = runner.invoke(cli, [])
     assert result.exit_code != 0
-    assert "NAME" in result.output  # Should show usage info
+    assert "--input" in result.output or "Usage:" in result.output
 
 
-# Test with NAME argument only
-def test_cli_with_name_only():
+# Test CLI with a real CSV file runs until NotImplementedError.
+def test_cli_with_csv_file_runs_until_not_implemented(tmp_path):
+    csv_path = tmp_path / "data.csv"
+    df = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
+    df.to_csv(csv_path, index=False)
     runner = CliRunner()
-    result = runner.invoke(cli, ["Alice"])
-    assert result.exit_code == 0
-    assert "Hello, Alice!" in result.output
+    result = runner.invoke(
+        cli,
+        ["-i", str(csv_path), "-a", "hc-stable", "-o", "out"],
+    )
+    assert result.exit_code == 1
+    assert "not yet implemented" in result.output.lower()
 
 
-# Test with NAME and --greet option
-def test_cli_with_name_and_greet():
+# Test CLI with a real CSV file and hyperparameter reaches algorithm.
+def test_cli_with_csv_file_and_hyperparameter(tmp_path):
+    csv_path = tmp_path / "data.csv"
+    df = pd.DataFrame({"X": [1, 0, 1], "Y": [0, 1, 0]})
+    df.to_csv(csv_path, index=False)
     runner = CliRunner()
-    result = runner.invoke(cli, ["--greet", "Hi", "Bob"])
-    assert result.exit_code == 0
-    assert "Hi, Bob!" in result.output
+    result = runner.invoke(
+        cli,
+        [
+            "-i",
+            str(csv_path),
+            "-a",
+            "hc",
+            "-o",
+            "out",
+            "-p",
+            "score=bic",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "not yet implemented" in result.output.lower()
 
 
 # Test that invoking script directly will run the CLI
