@@ -3,9 +3,11 @@
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
+from causaliq_core.graph import SDG
 
 from causaliq_discovery.params import validate_all
 from causaliq_discovery.registry import AlgorithmRegistry
+from causaliq_discovery.result import DiscoveryResult
 from causaliq_discovery.variable_type import VariableType
 
 __version__ = "0.1.0"
@@ -18,15 +20,6 @@ __url__ = "https://github.com/causaliq/causaliq-discovery"
 __license__ = "MIT"
 
 VERSION = tuple(map(int, __version__.split(".")))
-
-
-class DiscoveryResult:
-    """Result of a structure learning run.
-
-    Stub implementation for Commit 1; fully implemented in Commit 2
-    with graph, metadata, and trace attributes and file output
-    support.
-    """
 
 
 def learn_graph(
@@ -117,7 +110,8 @@ def learn_graph(
     adapter_class = AlgorithmRegistry.get_adapter(algorithm, variant)
     _ = adapter_class  # used in subsequent commits
 
-    return DiscoveryResult()
+    # Placeholder return — full execution wired in Commit 4.
+    return DiscoveryResult(graph=SDG([], []))
 
 
 __all__ = [
