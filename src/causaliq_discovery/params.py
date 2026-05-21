@@ -234,7 +234,7 @@ def validate_seed(
 
     Raises:
         TypeError: If seed is not None or an integer.
-        ValueError: If seed is out of the range 0–1000, or if
+        ValueError: If seed is out of the range 0–100, or if
             randomise is active but seed is None.
     """
     if seed is None:
@@ -248,9 +248,9 @@ def validate_seed(
             f"'seed' must be None or an integer; "
             f"got {type(seed).__name__}."
         )
-    if seed < 0 or seed > 1000:
+    if seed < 0 or seed > 100:
         raise ValueError(
-            f"'seed' must be between 0 and 1000 inclusive; " f"got {seed}."
+            f"'seed' must be between 0 and 100 inclusive; " f"got {seed}."
         )
 
 

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 from causaliq_core.graph import SDG
 
+from causaliq_discovery.input import apply_sampling, normalise_data
 from causaliq_discovery.params import validate_all
 from causaliq_discovery.registry import AlgorithmRegistry
 from causaliq_discovery.result import DiscoveryResult
@@ -66,7 +67,7 @@ def learn_graph(
             input data.  Supported values: ``"row_order"``,
             ``"column_order"``, ``"column_names"``,
             ``"row_subsample"``.  Requires ``seed``.
-        seed: Deterministic randomisation seed (0–1000).  Required
+        seed: Deterministic randomisation seed (0–100).  Required
             when ``randomise`` is specified.
 
     Returns:
@@ -109,6 +110,11 @@ def learn_graph(
     # Retrieve adapter — raises NotImplementedError if not yet added.
     adapter_class = AlgorithmRegistry.get_adapter(algorithm, variant)
     _ = adapter_class  # used in subsequent commits
+
+    # Normalise data input to NumPy and resolve variable types.
+    numpy_data, resolved_types = normalise_data(data, variable_types)
+    apply_sampling(numpy_data, sample_size, randomise, seed)
+    _ = resolved_types  # used in subsequent commits
 
     # Placeholder return — full execution wired in Commit 4.
     return DiscoveryResult(graph=SDG([], []))

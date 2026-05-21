@@ -14,7 +14,7 @@ from causaliq_discovery.registry import AlgorithmRegistry
 # Helper dataframe used across tests.
 @pytest.fixture
 def df():
-    return pd.DataFrame({"A": [1, 2], "B": [3, 4]})
+    return pd.DataFrame({"A": [1.0, 2.0], "B": [3.0, 4.0]})
 
 
 # Valid minimal call raises NotImplementedError (no adapter yet).
@@ -175,12 +175,12 @@ def test_seed_without_randomise_accepted(df):
 
 # seed out of range raises ValueError.
 def test_seed_out_of_range_raises_value_error(df):
-    with pytest.raises(ValueError, match="1000"):
+    with pytest.raises(ValueError, match="100"):
         learn_graph(
             data=df,
             algorithm="tabu-stable",
             randomise=["row_order"],
-            seed=1001,
+            seed=101,
         )
 
 
@@ -195,14 +195,14 @@ def test_seed_zero_is_valid(df):
         )
 
 
-# seed of exactly 1000 is valid.
+# seed of exactly 100 is valid.
 def test_seed_max_is_valid(df):
     with pytest.raises(NotImplementedError):
         learn_graph(
             data=df,
             algorithm="tabu-stable",
             randomise=["row_order"],
-            seed=1000,
+            seed=100,
         )
 
 

@@ -1,0 +1,11 @@
+X,Y,Z,U,V
+yes,no,high,low,yes
+no,yes,low,high,no
+yes,yes,med,low,yes
+no,no,high,med,no
+yes,no,low,high,yes
+no,yes,med,low,no
+yes,yes,high,med,yes
+no,no,low,high,no
+yes,no,med,low,yes
+no,yes,high,med,no
