@@ -1,6 +1,5 @@
 """Data input normalisation for learn_graph."""
 
-import warnings
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -181,17 +180,19 @@ def _coerce_df(
     Returns:
         New DataFrame with coerced column dtypes.
     """
-    target = "float32" if dstype == DatasetType.CONTINUOUS else "category"
-    return pd.DataFrame({col: df[col].astype(target) for col in df.columns})
+    if dstype == DatasetType.CONTINUOUS:
+        return pd.DataFrame(
+            {col: df[col].astype("float32") for col in df.columns}
+        )
+    return pd.DataFrame(
+        {col: df[col].astype("category") for col in df.columns}
+    )
 
 
 def _impute_variable_types(
     data: NumPy,
 ) -> Dict[str, VariableType]:
     """Impute variable types from a NumPy object's node types.
-
-    Emits a UserWarning for 'category' columns imputed as DISCRETE
-    since BINARY is also a valid interpretation.
 
     Args:
         data: NumPy data object.
@@ -208,13 +209,6 @@ def _impute_variable_types(
         if dtype in ("float32", "float64"):
             result[node] = VariableType.CONTINUOUS
         elif dtype == "category":
-            warnings.warn(
-                f"Variable '{node}' has dtype 'category'; "
-                "imputing as DISCRETE. Override with "
-                "'variable_types' if BINARY is intended.",
-                UserWarning,
-                stacklevel=4,
-            )
             result[node] = VariableType.DISCRETE
         else:
             raise ValueError(

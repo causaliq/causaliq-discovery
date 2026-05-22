@@ -68,7 +68,7 @@ def test_cli_unknown_algorithm(runner):
 def test_cli_valid_algorithm_raises_click_exception(runner):
     result = runner.invoke(
         cli,
-        ["-i", "data.csv", "-a", "tabu-stable", "-o", "out"],
+        ["-i", "data.csv", "-a", "hc", "-o", "out"],
     )
     assert result.exit_code == 1
     assert "not yet implemented" in result.output.lower()

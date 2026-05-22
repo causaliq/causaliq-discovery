@@ -185,15 +185,12 @@ def test_impute_float32_returns_continuous(
     assert all(v == VariableType.CONTINUOUS for v in result.values())
 
 
-# category nodes impute as DISCRETE with UserWarning.
-def test_impute_category_returns_discrete_with_warning(
+# category nodes impute as DISCRETE without warning.
+def test_impute_category_returns_discrete(
     cat_numpy: NumPy,
 ) -> None:
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        result = _impute_variable_types(cat_numpy)
+    result = _impute_variable_types(cat_numpy)
     assert all(v == VariableType.DISCRETE for v in result.values())
-    assert any("DISCRETE" in str(w.message) for w in caught)
 
 
 # Unknown dtype raises ValueError.

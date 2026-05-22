@@ -17,10 +17,10 @@ def df():
     return pd.DataFrame({"A": [1.0, 2.0], "B": [3.0, 4.0]})
 
 
-# Valid minimal call raises NotImplementedError (no adapter yet).
+# Valid minimal call raises NotImplementedError (no adapter for hc).
 def test_valid_minimal_call_raises_not_implemented(df):
     with pytest.raises(NotImplementedError):
-        learn_graph(data=df, algorithm="tabu-stable")
+        learn_graph(data=df, algorithm="hc")
 
 
 # Non-string, non-DataFrame, non-Data data raises TypeError.
@@ -120,10 +120,10 @@ def test_variable_types_valid_dict_accepted(df):
     with pytest.raises(NotImplementedError):
         learn_graph(
             data=df,
-            algorithm="tabu-stable",
+            algorithm="hc",
             variable_types={
                 "A": VariableType.CONTINUOUS,
-                "B": VariableType.DISCRETE,
+                "B": VariableType.CONTINUOUS,
             },
         )
 
@@ -170,7 +170,7 @@ def test_randomise_without_seed_raises_value_error(df):
 # seed without randomise is accepted (seed is ignored).
 def test_seed_without_randomise_accepted(df):
     with pytest.raises(NotImplementedError):
-        learn_graph(data=df, algorithm="tabu-stable", seed=42)
+        learn_graph(data=df, algorithm="hc", seed=42)
 
 
 # seed out of range raises ValueError.
@@ -189,7 +189,7 @@ def test_seed_zero_is_valid(df):
     with pytest.raises(NotImplementedError):
         learn_graph(
             data=df,
-            algorithm="tabu-stable",
+            algorithm="hc",
             randomise=["row_order"],
             seed=0,
         )
@@ -200,7 +200,7 @@ def test_seed_max_is_valid(df):
     with pytest.raises(NotImplementedError):
         learn_graph(
             data=df,
-            algorithm="tabu-stable",
+            algorithm="hc",
             randomise=["row_order"],
             seed=100,
         )

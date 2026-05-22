@@ -79,7 +79,7 @@ def test_variants_unknown_algorithm_raises_value_error():
 # get_adapter raises NotImplementedError before adapter registered.
 def test_get_adapter_raises_not_implemented():
     with pytest.raises(NotImplementedError):
-        AlgorithmRegistry.get_adapter("tabu-stable", "causaliq")
+        AlgorithmRegistry.get_adapter("hc", "bnlearn")
 
 
 # register_spec adds a new spec retrievable by get_spec.

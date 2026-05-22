@@ -3,7 +3,6 @@
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-from causaliq_core.graph import SDG
 
 from causaliq_discovery.input import apply_sampling, normalise_data
 from causaliq_discovery.params import validate_all
@@ -109,15 +108,39 @@ def learn_graph(
 
     # Retrieve adapter — raises NotImplementedError if not yet added.
     adapter_class = AlgorithmRegistry.get_adapter(algorithm, variant)
-    _ = adapter_class  # used in subsequent commits
 
     # Normalise data input to NumPy and resolve variable types.
     numpy_data, resolved_types = normalise_data(data, variable_types)
     apply_sampling(numpy_data, sample_size, randomise, seed)
-    _ = resolved_types  # used in subsequent commits
 
-    # Placeholder return — full execution wired in Commit 4.
-    return DiscoveryResult(graph=SDG([], []))
+    # Build merged hyperparameters: spec defaults overlaid with
+    # any user-supplied values.
+    effective_hp: Dict[str, Any] = {
+        **spec.hyperparameter_defaults,
+        **(hyperparameters or {}),
+    }
+
+    # Translate common names to package-specific names.
+    name_map = spec.hyperparameter_name_map
+    mapped_hp: Dict[str, Any] = {
+        name_map.get(k, k): v for k, v in effective_hp.items()
+    }
+
+    # Run the algorithm via the adapter.
+    adapter = adapter_class()
+    converted = adapter.convert_input(
+        numpy_data, resolved_types, sample_size, randomise, seed
+    )
+    raw_output = adapter.run(converted, algorithm, mapped_hp)
+    graph = adapter.convert_output(raw_output)
+
+    metadata: Dict[str, Any] = {
+        "algorithm": algorithm,
+        "variant": spec.variant,
+        "hyperparameters": effective_hp,
+    }
+
+    return DiscoveryResult(graph=graph, metadata=metadata)
 
 
 __all__ = [

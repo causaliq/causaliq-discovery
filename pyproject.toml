@@ -35,6 +35,7 @@ dependencies = [
     "pandas>=1.3.0",
     "causaliq-core>=0.7.0",
     "causaliq-data>=0.3.0",
+    "causaliq-analysis",
 ]
 
 [project.optional-dependencies]
@@ -171,6 +172,6 @@ warn_unreachable = true
 strict_equality = true
 
 [[tool.mypy.overrides]]
-module = ["pandas.*"]
+module = ["causaliq_analysis.*", "pandas.*"]
 ignore_missing_imports = true
 

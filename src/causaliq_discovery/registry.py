@@ -240,6 +240,11 @@ _CONSTRAINT_DEFAULTS: Dict[str, Any] = {
     "ci_test": "mi",
 }
 
+# Import and register concrete adapters for implemented algorithms.
+from causaliq_discovery.algorithms.causaliq_hc import (  # noqa: E402
+    CausalIQHCAdapter,
+)
+
 for _spec in [
     AlgorithmSpec(
         algorithm="hc-stable",
@@ -258,6 +263,12 @@ for _spec in [
         graph_type="DAG",
         supported_hyperparameters=_TABU_HYPERPARAMETERS,
         hyperparameter_defaults=_TABU_DEFAULTS,
+        hyperparameter_name_map={
+            "max_iterations": "maxiter",
+            "penalty_weight": "k",
+            "tabulist_len": "tabu",
+            "no_increase": "noinc",
+        },
     ),
     AlgorithmSpec(
         algorithm="hc",
@@ -334,3 +345,7 @@ for _spec in [
     ),
 ]:
     AlgorithmRegistry.register_spec(_spec)
+
+AlgorithmRegistry.register_adapter(
+    "tabu-stable", "causaliq", CausalIQHCAdapter
+)
