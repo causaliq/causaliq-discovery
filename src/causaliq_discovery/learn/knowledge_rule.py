@@ -82,7 +82,9 @@ class Rule(EnumWithAttrs):
             return self.test_equiv_add(best, second, sf)
 
         elif self.value == "mi_check":
-            return self.test_mi_discrepancy(best, second, sf, date)
+            return self.test_mi_discrepancy(
+                best, second, sf, date, knowledge.threshold
+            )
 
         elif self.value == "bic_unstable":
             return self.test_bic_unstable(
@@ -124,7 +126,12 @@ class Rule(EnumWithAttrs):
         )
 
     def test_mi_discrepancy(
-        self, best: Any, second: Any, sf: Any, date: Any
+        self,
+        best: Any,
+        second: Any,
+        sf: Any,
+        date: Any,
+        threshold: Any,
     ) -> Any:
         """
         Test if the MI discrepancy rule applies.
@@ -133,6 +140,7 @@ class Rule(EnumWithAttrs):
         :param DAGChange second: second best proposed change
         :param int sf: number of s.f. used when checking for score equality
         :param Data date: data learning structure from
+        :param float threshold: threshold for MI discrepancy check
 
         :returns Rule/None: Rule.MI_CHECK if rule applies else None
         """
@@ -168,7 +176,6 @@ class Rule(EnumWithAttrs):
         # print('\n*** MI_CHECK: mi={:.5f}, norm delta={:.5f}, rel_mi={:.5f}'
         #       .format(mi, delta, rel_mi))
 
-        threshold = self.threshold  # type: ignore[attr-defined]
         return Rule.MI_CHECK if rel_mi < threshold else None
 
     def test_bic_unstable(

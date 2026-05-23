@@ -140,7 +140,7 @@ class HCWorker:
         Run iterations of hill-climbing learning until it either completes
         at a local score maximum or a PAUSE is signalled.
         """
-        debug = False
+        debug = self.params.get("debug", False)
         self.paused = False
         self.best = BestDAGChanges(None, None)
 

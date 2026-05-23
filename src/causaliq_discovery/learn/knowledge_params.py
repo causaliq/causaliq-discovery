@@ -166,7 +166,7 @@ class KnowledgeParams:
         if (
             "partial" in params
             and params["partial"] is True
-            and not len(set(rules.rules) | {Rule.EQUIV_ADD, Rule.BIC_UNSTABLE})
+            and not len(set(rules.rules) & {Rule.EQUIV_ADD, Rule.BIC_UNSTABLE})
         ):
             raise ValueError("Knowledge(): extraneous partial parameter")
 
