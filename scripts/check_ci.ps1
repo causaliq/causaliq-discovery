@@ -84,6 +84,10 @@ $allPassed = $allPassed -and $flake8Result
 # 4. Type checking (unless Fast)
 $mypyResult = $true  # Default to true for Fast mode
 if (-not $Fast) {
+    # Force UTF-8 output to prevent UnicodeEncodeError on Windows
+    # consoles when mypy emits Unicode characters (e.g. μ from
+    # pandas-stubs type annotations).
+    $env:PYTHONUTF8 = "1"
     $mypyResult = Test-Command "python -m mypy src/" "MyPy type checking"
     $allPassed = $allPassed -and $mypyResult
 }
