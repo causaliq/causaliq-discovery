@@ -131,7 +131,7 @@ def learn_graph(
     converted = adapter.convert_input(
         numpy_data, resolved_types, sample_size, randomise, seed
     )
-    raw_output = adapter.run(converted, algorithm, mapped_hp)
+    raw_output = adapter.run(converted, algorithm, mapped_hp, trace)
     graph = adapter.convert_output(raw_output)
 
     metadata: Dict[str, Any] = {
@@ -140,7 +140,9 @@ def learn_graph(
         "hyperparameters": effective_hp,
     }
 
-    return DiscoveryResult(graph=graph, metadata=metadata)
+    result_trace = adapter.build_trace(raw_output) if trace else None
+
+    return DiscoveryResult(graph=graph, metadata=metadata, trace=result_trace)
 
 
 __all__ = [

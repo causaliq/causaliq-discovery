@@ -121,3 +121,64 @@ def test_tabu_stable_result_graph_has_no_self_loops(
             "->",
             node,
         ) not in result.graph.edges, f"Self-loop detected on node '{node}'"
+
+
+# trace=False (default) leaves DiscoveryResult.trace as None.
+def test_tabu_stable_trace_false_gives_none(asia_data) -> None:
+    result = learn_graph(asia_data, algorithm="tabu-stable", seed=1)
+    assert result.trace is None
+
+
+# trace=True populates DiscoveryResult.trace as a non-empty list.
+def test_tabu_stable_trace_true_gives_list(asia_data) -> None:
+    result = learn_graph(
+        asia_data, algorithm="tabu-stable", seed=1, trace=True
+    )
+    assert isinstance(result.trace, list)
+    assert len(result.trace) > 0
+
+
+# trace steps each contain required fields.
+def test_tabu_stable_trace_steps_have_required_fields(
+    asia_data,
+) -> None:
+    result = learn_graph(
+        asia_data, algorithm="tabu-stable", seed=1, trace=True
+    )
+    assert result.trace is not None
+    for step in result.trace:
+        assert "time" in step
+        assert "arc_change" in step
+        assert "score_increase" in step
+
+
+# first trace step is the init entry with null arc_change.
+def test_tabu_stable_trace_first_step_is_init(asia_data) -> None:
+    result = learn_graph(
+        asia_data, algorithm="tabu-stable", seed=1, trace=True
+    )
+    assert result.trace is not None
+    assert result.trace[0]["arc_change"] is None
+
+
+# last trace step is the stop entry with null arc_change.
+def test_tabu_stable_trace_last_step_is_stop(asia_data) -> None:
+    result = learn_graph(
+        asia_data, algorithm="tabu-stable", seed=1, trace=True
+    )
+    assert result.trace is not None
+    assert result.trace[-1]["arc_change"] is None
+
+
+# arc_change strings for add steps use the → symbol.
+def test_tabu_stable_trace_add_steps_use_arrow(asia_data) -> None:
+    result = learn_graph(
+        asia_data, algorithm="tabu-stable", seed=1, trace=True
+    )
+    assert result.trace is not None
+    add_steps = [
+        s
+        for s in result.trace
+        if s["arc_change"] is not None and "\u2192" in s["arc_change"]
+    ]
+    assert len(add_steps) > 0

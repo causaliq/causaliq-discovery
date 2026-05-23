@@ -1,7 +1,7 @@
 """Abstract base class for structure learning package adapters."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 from causaliq_core.graph import SDG
@@ -55,6 +55,7 @@ class PackageAdapter(ABC):
         converted_data: Any,
         algorithm: str,
         mapped_hyperparameters: Dict[str, Any],
+        trace: bool = False,
     ) -> Any:
         """Run the structure learning algorithm.
 
@@ -64,6 +65,8 @@ class PackageAdapter(ABC):
             mapped_hyperparameters: Hyperparameters with names and
                 values already translated to package-specific form
                 by AlgorithmRegistry.
+            trace: If True, the raw output must include trace data
+                that build_trace() can convert.
 
         Returns:
             Raw package output (format is package-specific).
@@ -78,4 +81,19 @@ class PackageAdapter(ABC):
 
         Returns:
             Learnt graph as an SDG object.
+        """
+
+    @abstractmethod
+    def build_trace(self, raw_output: Any) -> Optional[List[Dict[str, Any]]]:
+        """Convert raw output to a JSON-serialisable score_steps trace.
+
+        Called only when trace=True was passed to run().  The returned
+        list is stored directly in DiscoveryResult.trace.  Return None
+        if no trace data is available in raw_output.
+
+        Args:
+            raw_output: Raw output from run().
+
+        Returns:
+            Score-steps trace as a list of dicts, or None.
         """
