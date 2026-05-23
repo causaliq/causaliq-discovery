@@ -254,6 +254,10 @@ for _spec in [
         graph_type="DAG",
         supported_hyperparameters=_SCORE_HYPERPARAMETERS,
         hyperparameter_defaults=_SCORE_DEFAULTS,
+        hyperparameter_name_map={
+            "max_iterations": "maxiter",
+            "penalty_weight": "k",
+        },
     ),
     AlgorithmSpec(
         algorithm="tabu-stable",
@@ -346,6 +350,7 @@ for _spec in [
 ]:
     AlgorithmRegistry.register_spec(_spec)
 
+AlgorithmRegistry.register_adapter("hc-stable", "causaliq", CausalIQHCAdapter)
 AlgorithmRegistry.register_adapter(
     "tabu-stable", "causaliq", CausalIQHCAdapter
 )
