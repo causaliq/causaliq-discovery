@@ -33,7 +33,7 @@ requires-python = ">=3.9"
 dependencies = [
     "click>=8.0.0",
     "pandas>=1.3.0",
-    "causaliq-core>=0.7.0",
+    "causaliq-core>=0.8.0.dev1",
     "causaliq-data>=0.3.0",
     "causaliq-analysis",
 ]
@@ -91,6 +91,9 @@ minversion = "7.0"
 addopts = "-ra -q --strict-markers --cov=causaliq_discovery --cov-report=term-missing --cov-report=html  -m 'not slow'"
 testpaths = [
     "tests",
+]
+pythonpath = [
+    "src",
 ]
 python_files = [
     "test_*.py",
@@ -172,6 +175,11 @@ warn_unreachable = true
 strict_equality = true
 
 [[tool.mypy.overrides]]
-module = ["causaliq_analysis.*", "pandas.*"]
+module = [
+    "causaliq_analysis.*",
+    "causaliq_data",
+    "causaliq_data.*",
+    "pandas.*",
+]
 ignore_missing_imports = true
 

@@ -282,6 +282,10 @@ for _spec in [
         graph_type="DAG",
         supported_hyperparameters=_SCORE_HYPERPARAMETERS,
         hyperparameter_defaults=_SCORE_DEFAULTS,
+        hyperparameter_name_map={
+            "max_iterations": "max.iter",
+            "penalty_weight": "k",
+        },
     ),
     AlgorithmSpec(
         algorithm="tabu",
@@ -291,6 +295,12 @@ for _spec in [
         graph_type="DAG",
         supported_hyperparameters=_TABU_HYPERPARAMETERS,
         hyperparameter_defaults=_TABU_DEFAULTS,
+        hyperparameter_name_map={
+            "max_iterations": "max.iter",
+            "penalty_weight": "k",
+            "tabulist_len": "tabu",
+            "no_increase": "max.tabu",
+        },
     ),
     AlgorithmSpec(
         algorithm="pc-stable",
@@ -300,6 +310,9 @@ for _spec in [
         graph_type="CPDAG",
         supported_hyperparameters=_CONSTRAINT_HYPERPARAMETERS,
         hyperparameter_defaults=_CONSTRAINT_DEFAULTS,
+        hyperparameter_name_map={
+            "ci_test": "test",
+        },
     ),
     AlgorithmSpec(
         algorithm="gs",
@@ -309,6 +322,9 @@ for _spec in [
         graph_type="DAG",
         supported_hyperparameters=_CONSTRAINT_HYPERPARAMETERS,
         hyperparameter_defaults=_CONSTRAINT_DEFAULTS,
+        hyperparameter_name_map={
+            "ci_test": "test",
+        },
     ),
     AlgorithmSpec(
         algorithm="iiamb",
@@ -318,6 +334,9 @@ for _spec in [
         graph_type="DAG",
         supported_hyperparameters=_CONSTRAINT_HYPERPARAMETERS,
         hyperparameter_defaults=_CONSTRAINT_DEFAULTS,
+        hyperparameter_name_map={
+            "ci_test": "test",
+        },
     ),
     AlgorithmSpec(
         algorithm="h2pc",
@@ -332,6 +351,11 @@ for _spec in [
             **_SCORE_DEFAULTS,
             **_CONSTRAINT_DEFAULTS,
         },
+        hyperparameter_name_map={
+            "max_iterations": "max.iter",
+            "penalty_weight": "k",
+            "ci_test": "test",
+        },
     ),
     AlgorithmSpec(
         algorithm="mmhc",
@@ -345,6 +369,11 @@ for _spec in [
         hyperparameter_defaults={
             **_SCORE_DEFAULTS,
             **_CONSTRAINT_DEFAULTS,
+        },
+        hyperparameter_name_map={
+            "max_iterations": "max.iter",
+            "penalty_weight": "k",
+            "ci_test": "test",
         },
     ),
 ]:
