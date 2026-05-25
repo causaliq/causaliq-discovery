@@ -390,3 +390,6 @@ from causaliq_discovery.algorithms.bnlearn import (  # noqa: E402
 
 AlgorithmRegistry.register_adapter("hc", "bnlearn", BnlearnAdapter)
 AlgorithmRegistry.register_adapter("tabu", "bnlearn", BnlearnAdapter)
+AlgorithmRegistry.register_adapter("pc-stable", "bnlearn", BnlearnAdapter)
+AlgorithmRegistry.register_adapter("gs", "bnlearn", BnlearnAdapter)
+AlgorithmRegistry.register_adapter("iiamb", "bnlearn", BnlearnAdapter)

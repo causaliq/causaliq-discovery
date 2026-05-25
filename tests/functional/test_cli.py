@@ -46,7 +46,7 @@ def test_cli_with_csv_file_runs_until_not_implemented(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["-i", str(csv_path), "-a", "pc-stable", "-o", "out"],
+        ["-i", str(csv_path), "-a", "h2pc", "-o", "out"],
     )
     assert result.exit_code == 1
     assert "not yet implemented" in result.output.lower()
@@ -64,7 +64,7 @@ def test_cli_with_csv_file_and_hyperparameter(tmp_path):
             "-i",
             str(csv_path),
             "-a",
-            "pc-stable",
+            "h2pc",
             "-o",
             "out",
             "-p",

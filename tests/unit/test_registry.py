@@ -77,10 +77,10 @@ def test_variants_unknown_algorithm_raises_value_error():
         AlgorithmRegistry.variants("not-real")
 
 
-# get_adapter raises NotImplementedError before adapter registered.
+# get_adapter raises NotImplementedError for unregistered h2pc.
 def test_get_adapter_raises_not_implemented():
     with pytest.raises(NotImplementedError):
-        AlgorithmRegistry.get_adapter("pc-stable", "bnlearn")
+        AlgorithmRegistry.get_adapter("h2pc", "bnlearn")
 
 
 # get_adapter returns BnlearnAdapter for hc bnlearn variant.
@@ -92,6 +92,24 @@ def test_get_adapter_returns_bnlearn_adapter_for_hc():
 # get_adapter returns BnlearnAdapter for tabu bnlearn variant.
 def test_get_adapter_returns_bnlearn_adapter_for_tabu():
     adapter_cls = AlgorithmRegistry.get_adapter("tabu", "bnlearn")
+    assert adapter_cls is BnlearnAdapter
+
+
+# get_adapter returns BnlearnAdapter for pc-stable bnlearn variant.
+def test_get_adapter_returns_bnlearn_adapter_for_pc_stable():
+    adapter_cls = AlgorithmRegistry.get_adapter("pc-stable", "bnlearn")
+    assert adapter_cls is BnlearnAdapter
+
+
+# get_adapter returns BnlearnAdapter for gs bnlearn variant.
+def test_get_adapter_returns_bnlearn_adapter_for_gs():
+    adapter_cls = AlgorithmRegistry.get_adapter("gs", "bnlearn")
+    assert adapter_cls is BnlearnAdapter
+
+
+# get_adapter returns BnlearnAdapter for iiamb bnlearn variant.
+def test_get_adapter_returns_bnlearn_adapter_for_iiamb():
+    adapter_cls = AlgorithmRegistry.get_adapter("iiamb", "bnlearn")
     assert adapter_cls is BnlearnAdapter
 
 
