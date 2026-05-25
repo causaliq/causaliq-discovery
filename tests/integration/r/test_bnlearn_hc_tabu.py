@@ -8,12 +8,23 @@ unavailable.
 Mark: ``@pytest.mark.r_integration``
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+from causaliq_core.bn.io import read_bn
 
 from causaliq_discovery import learn_graph
 from causaliq_discovery.variable_type import VariableType
+
+_AB_DSC = str(
+    Path(__file__).parent.parent.parent
+    / "data"
+    / "functional"
+    / "tiny"
+    / "ab.dsc"
+)
 
 
 def _continuous_df(seed: int = 42) -> pd.DataFrame:
@@ -41,6 +52,15 @@ def _discrete_df(seed: int = 0) -> pd.DataFrame:
             "C": [labels[int(x)] for x in c],
         }
     )
+
+
+def _ab_cat_df() -> pd.DataFrame:
+    """100 deterministic cases from the A->B categorical network.
+
+    Uses ``pseudo=True`` (default) in generate_cases, which produces
+    the same rows on every call for a given BN structure.
+    """
+    return read_bn(_AB_DSC).generate_cases(100)
 
 
 # r_integration: hc on continuous data returns a directed DAG.
@@ -91,6 +111,32 @@ def test_hc_metadata_records_algorithm_and_variant() -> None:
     result = learn_graph(_continuous_df(), "hc", variant="bnlearn")
     assert result.metadata["algorithm"] == "hc"
     assert result.metadata["variant"] == "bnlearn"
+
+
+# r_integration: hc on categorical AB data learns the A->B arc.
+@pytest.mark.r_integration
+def test_hc_categorical_ab_learns_ab_arc() -> None:
+    vt = {"A": VariableType.DISCRETE, "B": VariableType.DISCRETE}
+    result = learn_graph(
+        _ab_cat_df(),
+        "hc",
+        variant="bnlearn",
+        variable_types=vt,
+    )
+    assert ("A", "B") in result.graph.edges
+
+
+# r_integration: tabu on categorical AB data learns the A->B arc.
+@pytest.mark.r_integration
+def test_tabu_categorical_ab_learns_ab_arc() -> None:
+    vt = {"A": VariableType.DISCRETE, "B": VariableType.DISCRETE}
+    result = learn_graph(
+        _ab_cat_df(),
+        "tabu",
+        variant="bnlearn",
+        variable_types=vt,
+    )
+    assert ("A", "B") in result.graph.edges
 
 
 # r_integration: hc with custom penalty_weight runs without error.
