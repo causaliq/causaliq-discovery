@@ -3,13 +3,16 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
 from causaliq_discovery.cli import (
     _algorithm_title,
     _build_template_context,
+    _find_mkdocs,
     _format_describe,
+    _update_mkdocs_nav,
     cli,
     main,
 )
@@ -28,13 +31,14 @@ def test_cli_version(runner):
     assert "0.1.0" in result.output
 
 
-# Help flag lists all subcommands.
+# Help flag lists all subcommands but not hidden generate-docs.
 def test_cli_help(runner):
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "learn" in result.output
     assert "list-algorithms" in result.output
     assert "describe" in result.output
+    assert "generate-docs" not in result.output
 
 
 # learn --help lists all required options.
@@ -186,11 +190,12 @@ def test_describe_cmd_shows_paper_ref(runner):
     assert "Chickering" in result.output
 
 
-# cli --help lists describe as an available command.
+# cli --help lists describe but not hidden generate-docs.
 def test_cli_help_lists_describe(runner):
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "describe" in result.output
+    assert "generate-docs" not in result.output
 
 
 # describe shows 'No limit' as default for max_elapsed.
@@ -293,8 +298,8 @@ def test_build_template_context_valid_values_for_ci_test():
     spec = AlgorithmRegistry.get_spec("pc-stable", None)
     ctx = _build_template_context(spec, "")
     ci_row = next(r for r in ctx["hyperparameters"] if r["name"] == "ci_test")
-    assert "`mi`" in ci_row["values"]
-    assert "`x2`" in ci_row["values"]
+    assert "`mi`" in ci_row["valid_values"]
+    assert "`x2`" in ci_row["valid_values"]
 
 
 # _build_template_context shows No limit for max_iterations.
@@ -411,3 +416,100 @@ def test_build_template_context_dash_when_no_default():
         r for r in context["hyperparameters"] if r["name"] == "score"
     )
     assert score_row["default"] == "—"
+
+
+# _find_mkdocs returns None when no mkdocs.yml exists in the path ancestry.
+def test_find_mkdocs_returns_none_when_not_found(tmp_path):
+    subdir = tmp_path / "a" / "b" / "c"
+    subdir.mkdir(parents=True)
+    result = _find_mkdocs(subdir)
+    assert result is None
+
+
+# _find_mkdocs returns the mkdocs.yml path when found in an ancestor.
+def test_find_mkdocs_returns_path_when_found(tmp_path):
+    mkdocs = tmp_path / "mkdocs.yml"
+    mkdocs.write_text("site_name: test\n", encoding="utf-8")
+    subdir = tmp_path / "a" / "b"
+    subdir.mkdir(parents=True)
+    result = _find_mkdocs(subdir)
+    assert result == mkdocs
+
+
+# _update_mkdocs_nav rewrites the Algorithms block in mkdocs.yml.
+def test_update_mkdocs_nav_updates_algorithms_section(tmp_path):
+    mkdocs_path = tmp_path / "mkdocs.yml"
+    mkdocs_path.write_text(
+        "nav:\n"
+        "  - Home: index.md\n"
+        "  - User Guide:\n"
+        "    - Algorithms:\n"
+        "      - Supported Algorithms: userguide/algorithms.md\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "docs" / "userguide" / "algorithms"
+    out_path.mkdir(parents=True)
+    _update_mkdocs_nav(mkdocs_path, ["hc", "tabu"], out_path)
+    content = mkdocs_path.read_text(encoding="utf-8")
+    assert "      - hc: userguide/algorithms/hc.md" in content
+    assert "      - tabu: userguide/algorithms/tabu.md" in content
+
+
+# _update_mkdocs_nav raises ClickException when Algorithms block is absent.
+def test_update_mkdocs_nav_raises_when_pattern_missing(tmp_path):
+    mkdocs_path = tmp_path / "mkdocs.yml"
+    mkdocs_path.write_text("nav:\n  - Home: index.md\n", encoding="utf-8")
+    out_path = tmp_path / "docs" / "userguide" / "algorithms"
+    out_path.mkdir(parents=True)
+    with pytest.raises(click.exceptions.ClickException):
+        _update_mkdocs_nav(mkdocs_path, ["hc"], out_path)
+
+
+# generate-docs updates mkdocs.yml nav when a valid --mkdocs path is given.
+def test_generate_docs_updates_mkdocs_nav(runner, tmp_path):
+    import shutil
+
+    docs_dir = Path(__file__).parents[2] / "docs" / "userguide" / "algorithms"
+    shutil.copy(docs_dir / "_template.md.j2", tmp_path / "_template.md.j2")
+    mkdocs_path = tmp_path / "mkdocs.yml"
+    mkdocs_path.write_text(
+        "nav:\n"
+        "  - Home: index.md\n"
+        "  - User Guide:\n"
+        "    - Algorithms:\n"
+        "      - Supported Algorithms: userguide/algorithms.md\n",
+        encoding="utf-8",
+    )
+    # out_path must be under tmp_path/docs/ so relative_to works
+    out_path = tmp_path / "docs" / "userguide" / "algorithms"
+    out_path.mkdir(parents=True)
+    shutil.copy(docs_dir / "_template.md.j2", out_path / "_template.md.j2")
+    shutil.copy(
+        docs_dir / "_algorithms_index.md.j2",
+        out_path / "_algorithms_index.md.j2",
+    )
+    result = runner.invoke(
+        cli,
+        [
+            "generate-docs",
+            "--output-dir",
+            str(out_path),
+            "--mkdocs",
+            str(mkdocs_path),
+        ],
+    )
+    assert result.exit_code == 0
+    assert "updated nav" in result.output
+    # Index file written and algorithms.md contains linked algorithm names
+    index_file = out_path.parent / "algorithms.md"
+    assert index_file.exists()
+    index_content = index_file.read_text(encoding="utf-8")
+    for algo in AlgorithmRegistry.algorithms():
+        assert f"[{algo}]" in index_content
+    # Algorithm pages contain hyperparameter links to hyperparameters.md
+    hc_md = (out_path / "hc.md").read_text(encoding="utf-8")
+    assert "../hyperparameters.md#score" in hc_md
+    # Nav in mkdocs.yml updated
+    content = mkdocs_path.read_text(encoding="utf-8")
+    for algo in AlgorithmRegistry.algorithms():
+        assert algo in content

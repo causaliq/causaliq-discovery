@@ -22,7 +22,7 @@
 | Hyperparameter | Type | Default | Values | Description |
 |---|---|---|---|---|
 {% for hp in hyperparameters %}
-| `{{ hp.name }}` | {{ hp.type }} | {{ hp.default }} | {{ hp.values }} | {{ hp.description }} |
+| [`{{ hp.name }}`](../hyperparameters.md#{{ hp.name }}) | {{ hp.type }} | {{ hp.default }} | {{ hp.valid_values }} | {{ hp.description }} |
 {% endfor %}
 {% else %}
 This algorithm has no configurable hyperparameters.

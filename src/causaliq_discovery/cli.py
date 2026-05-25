@@ -1,5 +1,6 @@
 """Command-line interface for causaliq-discovery."""
 
+import re
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -343,7 +344,7 @@ def _build_template_context(
                 "name": hp_name,
                 "type": hp_type,
                 "default": hp_default,
-                "values": hp_values,
+                "valid_values": hp_values,
                 "description": hp_desc,
             }
         )
@@ -373,7 +374,56 @@ def _build_template_context(
     }
 
 
-@cli.command(name="generate-docs")
+def _find_mkdocs(start: Path) -> Optional[Path]:
+    """Walk up from start until mkdocs.yml is found.
+
+    Args:
+        start: Directory to begin searching from.
+
+    Returns:
+        Path to mkdocs.yml, or ``None`` if not found.
+    """
+    for parent in [start, *start.parents]:
+        candidate = parent / "mkdocs.yml"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _update_mkdocs_nav(
+    mkdocs_path: Path,
+    algorithms: List[str],
+    out_path: Path,
+) -> None:
+    """Replace the Algorithms nav block in mkdocs.yml.
+
+    Args:
+        mkdocs_path: Path to the mkdocs.yml file.
+        algorithms: Sorted list of algorithm names.
+        out_path: Directory containing the generated pages.
+
+    Raises:
+        click.ClickException: If the Algorithms nav block is not found.
+    """
+    docs_dir = mkdocs_path.parent / "docs"
+    content = mkdocs_path.read_text(encoding="utf-8")
+    nav_lines = ["    - Algorithms:"]
+    nav_lines.append("      - Supported Algorithms: userguide/algorithms.md")
+    for alg in sorted(algorithms):
+        nav_path = (out_path / f"{alg}.md").relative_to(docs_dir)
+        nav_lines.append(f"      - {alg}: {nav_path.as_posix()}")
+    new_block = "\n".join(nav_lines) + "\n"
+    pattern = r"    - Algorithms:\n(?:      - [^\n]*\n)+"
+    if not re.search(pattern, content):
+        raise click.ClickException(
+            "Could not find 'Algorithms:' nav block in "
+            f"{mkdocs_path}. Update nav manually."
+        )
+    updated = re.sub(pattern, new_block, content)
+    mkdocs_path.write_text(updated, encoding="utf-8")
+
+
+@cli.command(name="generate-docs", hidden=True)
 @click.option(
     "--output-dir",
     default=None,
@@ -384,7 +434,19 @@ def _build_template_context(
         "current working directory."
     ),
 )
-def generate_docs_cmd(output_dir: Optional[str]) -> None:
+@click.option(
+    "--mkdocs",
+    "mkdocs_file",
+    default=None,
+    metavar="FILE",
+    help=(
+        "Path to mkdocs.yml. Auto-detected by walking up from "
+        "--output-dir when not supplied."
+    ),
+)
+def generate_docs_cmd(
+    output_dir: Optional[str], mkdocs_file: Optional[str]
+) -> None:
     """Generate a user-guide markdown page for each registered algorithm."""
     cwd = Path.cwd()
     out_path = (
@@ -404,6 +466,8 @@ def generate_docs_cmd(output_dir: Optional[str]) -> None:
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
         keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
     )
     template = env.get_template(template_name)
 
@@ -429,9 +493,36 @@ def generate_docs_cmd(output_dir: Optional[str]) -> None:
             display = out_file
         click.echo(f"  wrote {display}")
 
-    click.echo(
-        f"Generated {len(AlgorithmRegistry.algorithms())} algorithm pages."
-    )
+    algorithms = AlgorithmRegistry.algorithms()
+    click.echo(f"Generated {len(algorithms)} algorithm pages.")
+
+    index_template_name = "_algorithms_index.md.j2"
+    if (template_dir / index_template_name).exists():
+        index_template = env.get_template(index_template_name)
+        all_specs = [
+            AlgorithmRegistry.get_spec(alg, None) for alg in algorithms
+        ]
+        index_file = out_path.parent / "algorithms.md"
+        index_file.write_text(
+            index_template.render(algorithms=all_specs),
+            encoding="utf-8",
+        )
+        try:
+            display_index = index_file.relative_to(cwd)
+        except ValueError:
+            display_index = index_file
+        click.echo(f"  wrote {display_index}")
+
+    mkdocs_path = Path(mkdocs_file) if mkdocs_file else _find_mkdocs(out_path)
+    if mkdocs_path is None:
+        click.echo("Warning: mkdocs.yml not found; nav not updated.")
+    else:
+        _update_mkdocs_nav(mkdocs_path, algorithms, out_path)
+        try:
+            display_mkdocs = mkdocs_path.relative_to(cwd)
+        except ValueError:
+            display_mkdocs = mkdocs_path
+        click.echo(f"  updated nav in {display_mkdocs}")
 
 
 def main() -> None:

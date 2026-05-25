@@ -41,17 +41,33 @@ theme:
 extra_css:
   - http://causaliq.org/css/mkdocs.css
 
+exclude_docs: |
+  _descriptions/
+  _template.md.j2
+  _algorithms_index.md.j2
+
 nav:
   - Home: index.md
   - Roadmap: roadmap.md
   - User Guide:
     - User Guide Introduction: userguide/index.md
-    - Algorithms: userguide/algorithms.md
+    - Algorithms:
+      - Supported Algorithms: userguide/algorithms.md
+      - gs: userguide/algorithms/gs.md
+      - h2pc: userguide/algorithms/h2pc.md
+      - hc: userguide/algorithms/hc.md
+      - hc-stable: userguide/algorithms/hc-stable.md
+      - iiamb: userguide/algorithms/iiamb.md
+      - mmhc: userguide/algorithms/mmhc.md
+      - pc-stable: userguide/algorithms/pc-stable.md
+      - tabu: userguide/algorithms/tabu.md
+      - tabu-stable: userguide/algorithms/tabu-stable.md
     - Hyperparameters: userguide/hyperparameters.md
   - Architecture: 
     - Architectural Overview: architecture/overview.md
     - Design Notes: 
       - Example: architecture/example_design_note.md
+    - Adding Algorithms: architecture/adding-algorithms.md
   - API Reference: 
     - API Overview: api/overview.md
     - CLI: api/cli.md
