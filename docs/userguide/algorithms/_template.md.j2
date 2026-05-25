@@ -1,0 +1,37 @@
+# {{ title }} Algorithm
+
+## Overview
+
+{{ description_fragment }}
+
+**Class:** {{ spec.algorithm_class }} · {{ spec.graph_type }}
+**Package:** {{ spec.package }}
+{% if spec.paper_ref %}
+
+## Reference
+
+{{ paper_ref_wrapped }}
+{% if spec.paper_url %}
+<{{ spec.paper_url }}>
+{% endif %}
+{% endif %}
+
+## Hyperparameters
+{% if hyperparameters %}
+
+| Hyperparameter | Type | Default | Values | Description |
+|---|---|---|---|---|
+{% for hp in hyperparameters %}
+| `{{ hp.name }}` | {{ hp.type }} | {{ hp.default }} | {{ hp.values }} | {{ hp.description }} |
+{% endfor %}
+{% else %}
+This algorithm has no configurable hyperparameters.
+{% endif %}
+
+## Variants
+
+| Variant | Package |
+|---|---|
+{% for v in variants %}
+| {{ v.variant }} | {{ v.package }} |
+{% endfor %}

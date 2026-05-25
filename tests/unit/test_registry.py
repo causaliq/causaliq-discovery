@@ -4,8 +4,10 @@ import pytest
 
 from causaliq_discovery.algorithms.bnlearn import BnlearnAdapter
 from causaliq_discovery.registry import (
+    HYPERPARAMETER_SPECS,
     AlgorithmRegistry,
     AlgorithmSpec,
+    HyperparameterSpec,
 )
 
 
@@ -167,6 +169,12 @@ def test_pc_stable_supports_constraint_hyperparameters():
     assert "score" not in spec.supported_hyperparameters
 
 
+# ci_test valid values are 'mi' and 'x2'.
+def test_ci_test_valid_values():
+    hp = AlgorithmRegistry.get_hyperparameter_spec("ci_test")
+    assert hp.valid_values == ["mi", "x2"]
+
+
 # h2pc supports both score and constraint hyperparameters.
 def test_h2pc_supports_hybrid_hyperparameters():
     spec = AlgorithmRegistry.get_spec("h2pc", "bnlearn")
@@ -214,3 +222,116 @@ def test_register_adapter_then_get_adapter_returns_class():
     # Cleanup to avoid polluting other tests.
     del AlgorithmRegistry._specs[("_ta_algo", "_ta_var")]
     del AlgorithmRegistry._adapters[("_ta_algo", "_ta_var")]
+
+
+# HyperparameterSpec stores all declared fields correctly.
+def test_hyperparameter_spec_stores_fields():
+    spec = HyperparameterSpec(
+        name="score",
+        category="score",
+        type="str",
+        description="Test description.",
+    )
+    assert spec.name == "score"
+    assert spec.category == "score"
+    assert spec.type == "str"
+    assert spec.description == "Test description."
+    assert spec.valid_values is None
+    assert spec.default_display is None
+
+
+# max_elapsed HyperparameterSpec has default_display set to 'No limit'.
+def test_max_elapsed_has_no_limit_default_display():
+    hp = AlgorithmRegistry.get_hyperparameter_spec("max_elapsed")
+    assert hp.default_display == "No limit"
+
+
+# max_iterations HyperparameterSpec has default_display set to 'No limit'.
+def test_max_iterations_has_no_limit_default_display():
+    hp = AlgorithmRegistry.get_hyperparameter_spec("max_iterations")
+    assert hp.default_display == "No limit"
+
+
+# iss and penalty_weight have a default of 1.0 for score-based algorithms.
+def test_score_defaults_include_iss_and_penalty_weight():
+    spec = AlgorithmRegistry.get_spec("hc", None)
+    assert spec.hyperparameter_defaults.get("iss") == 1.0
+    assert spec.hyperparameter_defaults.get("penalty_weight") == 1.0
+
+
+# no_increase default for tabu algorithms is 10.
+def test_tabu_no_increase_default_is_ten():
+    spec = AlgorithmRegistry.get_spec("tabu", None)
+    assert spec.hyperparameter_defaults.get("no_increase") == 10
+
+
+# get_hyperparameter_spec returns the spec for a known HP name.
+def test_get_hyperparameter_spec_returns_known_hp():
+    hp = AlgorithmRegistry.get_hyperparameter_spec("score")
+    assert hp.name == "score"
+    assert hp.type == "str"
+    assert hp.valid_values is not None
+    assert "bic" in hp.valid_values
+
+
+# get_hyperparameter_spec raises KeyError for an unknown HP name.
+def test_get_hyperparameter_spec_unknown_raises_key_error():
+    with pytest.raises(KeyError):
+        AlgorithmRegistry.get_hyperparameter_spec("not_a_hp")
+
+
+# HYPERPARAMETER_SPECS covers every HP used by any registered spec.
+def test_hyperparameter_specs_covers_all_used_hyperparameters():
+    for alg in AlgorithmRegistry.algorithms():
+        spec = AlgorithmRegistry.get_spec(alg, None)
+        for hp in spec.supported_hyperparameters:
+            assert hp in HYPERPARAMETER_SPECS, (
+                f"HP '{hp}' used by '{alg}' " f"not in HYPERPARAMETER_SPECS"
+            )
+
+
+# All registered specs have a non-empty paper_ref.
+def test_all_registered_specs_have_paper_ref():
+    for alg in AlgorithmRegistry.algorithms():
+        spec = AlgorithmRegistry.get_spec(alg, None)
+        assert spec.paper_ref, (
+            f"Algorithm '{alg}' variant '{spec.variant}' " f"has no paper_ref."
+        )
+
+
+# All registered specs have a valid algorithm_class value.
+def test_all_registered_specs_have_algorithm_class():
+    valid = {"score", "constraint", "hybrid"}
+    for alg in AlgorithmRegistry.algorithms():
+        spec = AlgorithmRegistry.get_spec(alg, None)
+        assert spec.algorithm_class in valid, (
+            f"Algorithm '{alg}' has unexpected class "
+            f"'{spec.algorithm_class}'."
+        )
+
+
+# Score-based algorithms carry class 'score'.
+def test_score_algorithms_have_score_class():
+    for alg in ("hc", "tabu", "hc-stable", "tabu-stable"):
+        spec = AlgorithmRegistry.get_spec(alg, None)
+        assert spec.algorithm_class == "score"
+
+
+# Constraint-based algorithms carry class 'constraint'.
+def test_constraint_algorithms_have_constraint_class():
+    for alg in ("pc-stable", "gs", "iiamb"):
+        spec = AlgorithmRegistry.get_spec(alg, None)
+        assert spec.algorithm_class == "constraint"
+
+
+# Hybrid algorithms carry class 'hybrid'.
+def test_hybrid_algorithms_have_hybrid_class():
+    for alg in ("h2pc", "mmhc"):
+        spec = AlgorithmRegistry.get_spec(alg, None)
+        assert spec.algorithm_class == "hybrid"
+
+
+# pc-stable has graph_type PDAG.
+def test_pc_stable_graph_type_is_pdag():
+    spec = AlgorithmRegistry.get_spec("pc-stable", None)
+    assert spec.graph_type == "PDAG"

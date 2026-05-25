@@ -7,6 +7,32 @@ from causaliq_discovery.adapter import PackageAdapter
 
 
 @dataclass
+class HyperparameterSpec:
+    """Documentation metadata for a single hyperparameter.
+
+    Attributes:
+        name: Common hyperparameter name.
+        category: Logical group: ``"score"``, ``"constraint"``,
+            or ``"general"``.
+        type: Python type name: ``"int"``, ``"float"``, or
+            ``"str"``.
+        description: Short one-line description.
+        valid_values: Enumerated valid values, or ``None`` if any
+            value of the declared type is accepted.
+        default_display: Display string for the default shown in
+            ``cqdisc describe`` when no algorithm-specific default
+            is set, e.g. ``"No limit"``.
+    """
+
+    name: str
+    category: str
+    type: str
+    description: str
+    valid_values: Optional[List[str]] = None
+    default_display: Optional[str] = None
+
+
+@dataclass
 class AlgorithmSpec:
     """Specification for a single algorithm variant.
 
@@ -32,6 +58,8 @@ class AlgorithmSpec:
             hyperparameter value to the package-specific value,
             keyed by common hyperparameter name then common value.
             Omitted entries use the common value unchanged.
+        algorithm_class: Algorithmic class of the algorithm:
+            ``"score"``, ``"constraint"``, or ``"hybrid"``.
     """
 
     algorithm: str
@@ -45,6 +73,9 @@ class AlgorithmSpec:
     hyperparameter_value_map: Dict[str, Dict[Any, Any]] = field(
         default_factory=dict
     )
+    paper_ref: str = ""
+    paper_url: str = ""
+    algorithm_class: str = ""
 
 
 class AlgorithmRegistry:
@@ -173,6 +204,21 @@ class AlgorithmRegistry:
         return variants
 
     @classmethod
+    def get_hyperparameter_spec(cls, name: str) -> HyperparameterSpec:
+        """Return the HyperparameterSpec for a hyperparameter name.
+
+        Args:
+            name: Common hyperparameter name.
+
+        Returns:
+            Matching HyperparameterSpec.
+
+        Raises:
+            KeyError: If name is not in the global registry.
+        """
+        return HYPERPARAMETER_SPECS[name]
+
+    @classmethod
     def _resolve_key(
         cls, algorithm: str, variant: Optional[str]
     ) -> Tuple[str, str]:
@@ -207,6 +253,89 @@ class AlgorithmRegistry:
 
 
 # ---------------------------------------------------------------------------
+# Global hyperparameter documentation registry.
+# ---------------------------------------------------------------------------
+
+HYPERPARAMETER_SPECS: Dict[str, HyperparameterSpec] = {
+    "alpha": HyperparameterSpec(
+        name="alpha",
+        category="constraint",
+        type="float",
+        description=(
+            "p-value threshold below which a CI test indicates "
+            "conditional independence."
+        ),
+    ),
+    "ci_test": HyperparameterSpec(
+        name="ci_test",
+        category="constraint",
+        type="str",
+        description=(
+            "Conditional independence test used in "
+            "constraint-based learning."
+        ),
+        valid_values=["mi", "x2"],
+    ),
+    "iss": HyperparameterSpec(
+        name="iss",
+        category="score",
+        type="float",
+        description=(
+            "Imaginary Sample Size weighting the prior in " "Bayesian scores."
+        ),
+    ),
+    "max_elapsed": HyperparameterSpec(
+        name="max_elapsed",
+        category="general",
+        type="int",
+        description="Maximum allowed execution time in seconds.",
+        default_display="No limit",
+    ),
+    "max_iterations": HyperparameterSpec(
+        name="max_iterations",
+        category="score",
+        type="int",
+        description="Maximum number of iterations.",
+        default_display="No limit",
+    ),
+    "no_increase": HyperparameterSpec(
+        name="no_increase",
+        category="score",
+        type="int",
+        description=("Iterations permitted without a score improvement."),
+    ),
+    "penalty_weight": HyperparameterSpec(
+        name="penalty_weight",
+        category="score",
+        type="float",
+        description=(
+            "Weight of the penalty component in AIC and BIC " "scores."
+        ),
+    ),
+    "score": HyperparameterSpec(
+        name="score",
+        category="score",
+        type="str",
+        description="Scoring function for score-based learning.",
+        valid_values=[
+            "aic",
+            "bdeu",
+            "bge",
+            "bic",
+            "k2",
+            "loglik",
+        ],
+    ),
+    "tabulist_len": HyperparameterSpec(
+        name="tabulist_len",
+        category="score",
+        type="int",
+        description="Length of the tabu list.",
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
 # Pre-registered algorithm specs for all initial algorithms.
 # Hyperparameter name/value maps are populated when adapters are added.
 # ---------------------------------------------------------------------------
@@ -220,6 +349,8 @@ _SCORE_HYPERPARAMETERS: Set[str] = {
 }
 _SCORE_DEFAULTS: Dict[str, Any] = {
     "score": "bic",
+    "iss": 1.0,
+    "penalty_weight": 1.0,
 }
 _TABU_HYPERPARAMETERS: Set[str] = _SCORE_HYPERPARAMETERS | {
     "tabulist_len",
@@ -228,7 +359,7 @@ _TABU_HYPERPARAMETERS: Set[str] = _SCORE_HYPERPARAMETERS | {
 _TABU_DEFAULTS: Dict[str, Any] = {
     **_SCORE_DEFAULTS,
     "tabulist_len": 10,
-    "no_increase": 0,
+    "no_increase": 10,
 }
 _CONSTRAINT_HYPERPARAMETERS: Set[str] = {
     "alpha",
@@ -252,12 +383,20 @@ for _spec in [
         package="CausalIQ",
         description="Stable hill-climbing",
         graph_type="DAG",
+        algorithm_class="score",
         supported_hyperparameters=_SCORE_HYPERPARAMETERS,
         hyperparameter_defaults=_SCORE_DEFAULTS,
         hyperparameter_name_map={
             "max_iterations": "maxiter",
             "penalty_weight": "k",
         },
+        paper_ref=(
+            "Kitson N.K. and Constantinou A.C. (2025) – "
+            "Stable structure learning with HC-Stable and "
+            "Tabu-Stable algorithms. "
+            "Int. J. Approx. Reason. 186, 109522."
+        ),
+        paper_url=("https://doi.org/10.1016/j.ijar.2025.109522"),
     ),
     AlgorithmSpec(
         algorithm="tabu-stable",
@@ -265,6 +404,7 @@ for _spec in [
         package="CausalIQ",
         description="Stable hill-climbing with tabu list",
         graph_type="DAG",
+        algorithm_class="score",
         supported_hyperparameters=_TABU_HYPERPARAMETERS,
         hyperparameter_defaults=_TABU_DEFAULTS,
         hyperparameter_name_map={
@@ -273,6 +413,13 @@ for _spec in [
             "tabulist_len": "tabu",
             "no_increase": "noinc",
         },
+        paper_ref=(
+            "Kitson N.K. and Constantinou A.C. (2025) – "
+            "Stable structure learning with HC-Stable and "
+            "Tabu-Stable algorithms. "
+            "Int. J. Approx. Reason. 186, 109522."
+        ),
+        paper_url=("https://doi.org/10.1016/j.ijar.2025.109522"),
     ),
     AlgorithmSpec(
         algorithm="hc",
@@ -280,12 +427,19 @@ for _spec in [
         package="bnlearn",
         description="Hill-climbing",
         graph_type="DAG",
+        algorithm_class="score",
         supported_hyperparameters=_SCORE_HYPERPARAMETERS,
         hyperparameter_defaults=_SCORE_DEFAULTS,
         hyperparameter_name_map={
             "max_iterations": "max.iter",
             "penalty_weight": "k",
         },
+        paper_ref=(
+            "Chickering D.M. (2002) – Optimal Structure "
+            "Identification with Greedy Search. "
+            "J. Mach. Learn. Res. 3, 507\u2013554."
+        ),
+        paper_url="https://jmlr.org/papers/v3/chickering02b.html",
     ),
     AlgorithmSpec(
         algorithm="tabu",
@@ -293,6 +447,7 @@ for _spec in [
         package="bnlearn",
         description="Hill-climbing with tabu list",
         graph_type="DAG",
+        algorithm_class="score",
         supported_hyperparameters=_TABU_HYPERPARAMETERS,
         hyperparameter_defaults=_TABU_DEFAULTS,
         hyperparameter_name_map={
@@ -301,18 +456,31 @@ for _spec in [
             "tabulist_len": "tabu",
             "no_increase": "max.tabu",
         },
+        paper_ref=(
+            "Glover F. (1989) – Tabu Search. "
+            "ORSA J. Computing 1(3), 190\u2013206."
+        ),
+        paper_url="https://doi.org/10.1287/ijoc.1.3.190",
     ),
     AlgorithmSpec(
         algorithm="pc-stable",
         variant="bnlearn",
         package="bnlearn",
         description="Stable PC (Peters & Clark)",
-        graph_type="CPDAG",
+        graph_type="PDAG",
+        algorithm_class="constraint",
         supported_hyperparameters=_CONSTRAINT_HYPERPARAMETERS,
         hyperparameter_defaults=_CONSTRAINT_DEFAULTS,
         hyperparameter_name_map={
             "ci_test": "test",
         },
+        paper_ref=(
+            "Colombo D. & Maathuis M.H. (2014) – "
+            "Order-Independent Constraint-Based Causal "
+            "Structure Learning. "
+            "J. Mach. Learn. Res. 15, 3741\u20133782."
+        ),
+        paper_url="https://jmlr.org/papers/v15/colombo14a.html",
     ),
     AlgorithmSpec(
         algorithm="gs",
@@ -320,11 +488,19 @@ for _spec in [
         package="bnlearn",
         description="Grow-shrink local discovery",
         graph_type="DAG",
+        algorithm_class="constraint",
         supported_hyperparameters=_CONSTRAINT_HYPERPARAMETERS,
         hyperparameter_defaults=_CONSTRAINT_DEFAULTS,
         hyperparameter_name_map={
             "ci_test": "test",
         },
+        paper_ref=(
+            "Margaritis D. & Thrun S. (1999) – Bayesian Network "
+            "Induction via Local Neighbourhoods. "
+            "Advances in NeurIPS 12, 505\u2013511."
+        ),
+        paper_url="https://proceedings.neurips.cc/paper/1999/hash/"
+        "7d12b66d3df6af8d429c1a357d8b9e1a-Abstract.html",
     ),
     AlgorithmSpec(
         algorithm="iiamb",
@@ -332,11 +508,18 @@ for _spec in [
         package="bnlearn",
         description="Interleaved IAMB local discovery",
         graph_type="DAG",
+        algorithm_class="constraint",
         supported_hyperparameters=_CONSTRAINT_HYPERPARAMETERS,
         hyperparameter_defaults=_CONSTRAINT_DEFAULTS,
         hyperparameter_name_map={
             "ci_test": "test",
         },
+        paper_ref=(
+            "Tsamardinos I., Aliferis C.F. & Statnikov A. "
+            "(2003) – Algorithms for Large Scale Markov Blanket "
+            "Discovery. FLAIRS 2003, 376\u2013380."
+        ),
+        paper_url="",
     ),
     AlgorithmSpec(
         algorithm="h2pc",
@@ -344,6 +527,7 @@ for _spec in [
         package="bnlearn",
         description="Parents & Children and hill-climbing",
         graph_type="DAG",
+        algorithm_class="hybrid",
         supported_hyperparameters=(
             _SCORE_HYPERPARAMETERS | _CONSTRAINT_HYPERPARAMETERS
         ),
@@ -356,6 +540,13 @@ for _spec in [
             "penalty_weight": "k",
             "ci_test": "test",
         },
+        paper_ref=(
+            "Gasse M., Aussem A. & Elghazel H. (2014) – A Hybrid "
+            "Algorithm for BN Structure Learning with Application "
+            "to Multi-Label Learning. "
+            "Expert Syst. Appl. 41(15), 6755\u20136772."
+        ),
+        paper_url="https://doi.org/10.1016/j.eswa.2014.04.032",
     ),
     AlgorithmSpec(
         algorithm="mmhc",
@@ -363,6 +554,7 @@ for _spec in [
         package="bnlearn",
         description="Markov Blankets and hill-climbing",
         graph_type="DAG",
+        algorithm_class="hybrid",
         supported_hyperparameters=(
             _SCORE_HYPERPARAMETERS | _CONSTRAINT_HYPERPARAMETERS
         ),
@@ -375,6 +567,12 @@ for _spec in [
             "penalty_weight": "k",
             "ci_test": "test",
         },
+        paper_ref=(
+            "Tsamardinos I., Brown L.E. & Aliferis C.F. (2006) – "
+            "The Max-Min Hill-Climbing BN Structure Learning "
+            "Algorithm. Mach. Learn. 65, 31\u201378."
+        ),
+        paper_url="https://doi.org/10.1007/s10994-006-6889-7",
     ),
 ]:
     AlgorithmRegistry.register_spec(_spec)
