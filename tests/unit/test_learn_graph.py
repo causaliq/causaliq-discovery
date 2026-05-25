@@ -17,8 +17,13 @@ def df():
     return pd.DataFrame({"A": [1.0, 2.0], "B": [3.0, 4.0]})
 
 
-# Valid minimal call raises NotImplementedError (no adapter for hc).
-def test_valid_minimal_call_raises_not_implemented(df):
+# Valid minimal call raises NotImplementedError (no adapter registered).
+def test_valid_minimal_call_raises_not_implemented(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        side_effect=NotImplementedError,
+    )
     with pytest.raises(NotImplementedError):
         learn_graph(data=df, algorithm="hc")
 
@@ -116,7 +121,12 @@ def test_variable_types_bad_value_raises_type_error(df):
 
 
 # Valid variable_types dict passes validation.
-def test_variable_types_valid_dict_accepted(df):
+def test_variable_types_valid_dict_accepted(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        side_effect=NotImplementedError,
+    )
     with pytest.raises(NotImplementedError):
         learn_graph(
             data=df,
@@ -168,7 +178,12 @@ def test_randomise_without_seed_raises_value_error(df):
 
 
 # seed without randomise is accepted (seed is ignored).
-def test_seed_without_randomise_accepted(df):
+def test_seed_without_randomise_accepted(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        side_effect=NotImplementedError,
+    )
     with pytest.raises(NotImplementedError):
         learn_graph(data=df, algorithm="hc", seed=42)
 
@@ -185,7 +200,12 @@ def test_seed_out_of_range_raises_value_error(df):
 
 
 # seed of exactly 0 is valid.
-def test_seed_zero_is_valid(df):
+def test_seed_zero_is_valid(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        side_effect=NotImplementedError,
+    )
     with pytest.raises(NotImplementedError):
         learn_graph(
             data=df,
@@ -196,7 +216,12 @@ def test_seed_zero_is_valid(df):
 
 
 # seed of exactly 100 is valid.
-def test_seed_max_is_valid(df):
+def test_seed_max_is_valid(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        side_effect=NotImplementedError,
+    )
     with pytest.raises(NotImplementedError):
         learn_graph(
             data=df,

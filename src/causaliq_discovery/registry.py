@@ -383,3 +383,10 @@ AlgorithmRegistry.register_adapter("hc-stable", "causaliq", CausalIQHCAdapter)
 AlgorithmRegistry.register_adapter(
     "tabu-stable", "causaliq", CausalIQHCAdapter
 )
+
+from causaliq_discovery.algorithms.bnlearn import (  # noqa: E402
+    BnlearnAdapter,
+)
+
+AlgorithmRegistry.register_adapter("hc", "bnlearn", BnlearnAdapter)
+AlgorithmRegistry.register_adapter("tabu", "bnlearn", BnlearnAdapter)

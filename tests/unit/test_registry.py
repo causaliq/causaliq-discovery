@@ -2,6 +2,7 @@
 
 import pytest
 
+from causaliq_discovery.algorithms.bnlearn import BnlearnAdapter
 from causaliq_discovery.registry import (
     AlgorithmRegistry,
     AlgorithmSpec,
@@ -79,7 +80,19 @@ def test_variants_unknown_algorithm_raises_value_error():
 # get_adapter raises NotImplementedError before adapter registered.
 def test_get_adapter_raises_not_implemented():
     with pytest.raises(NotImplementedError):
-        AlgorithmRegistry.get_adapter("hc", "bnlearn")
+        AlgorithmRegistry.get_adapter("pc-stable", "bnlearn")
+
+
+# get_adapter returns BnlearnAdapter for hc bnlearn variant.
+def test_get_adapter_returns_bnlearn_adapter_for_hc():
+    adapter_cls = AlgorithmRegistry.get_adapter("hc", "bnlearn")
+    assert adapter_cls is BnlearnAdapter
+
+
+# get_adapter returns BnlearnAdapter for tabu bnlearn variant.
+def test_get_adapter_returns_bnlearn_adapter_for_tabu():
+    adapter_cls = AlgorithmRegistry.get_adapter("tabu", "bnlearn")
+    assert adapter_cls is BnlearnAdapter
 
 
 # register_spec adds a new spec retrievable by get_spec.

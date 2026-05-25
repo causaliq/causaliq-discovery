@@ -4,6 +4,7 @@ import pytest
 from click.testing import CliRunner
 
 from causaliq_discovery.cli import cli, help_cli, main
+from causaliq_discovery.registry import AlgorithmRegistry
 
 
 @pytest.fixture
@@ -65,7 +66,12 @@ def test_cli_unknown_algorithm(runner):
 
 
 # Valid algorithm with no adapter raises ClickException (not UsageError).
-def test_cli_valid_algorithm_raises_click_exception(runner):
+def test_cli_valid_algorithm_raises_click_exception(runner, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        side_effect=NotImplementedError("not yet implemented"),
+    )
     result = runner.invoke(
         cli,
         ["-i", "data.csv", "-a", "hc", "-o", "out"],

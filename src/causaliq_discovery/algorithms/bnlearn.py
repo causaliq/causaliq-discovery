@@ -179,7 +179,7 @@ class BnlearnAdapter(PackageAdapter):
         params: Dict[str, Any] = {
             k: v
             for k, v in mapped_hyperparameters.items()
-            if k != "max_elapsed"
+            if k != "max_elapsed" and not (k == "max.tabu" and v == 0)
         }
 
         # Apply static score value translation (e.g. bdeu → bde).
