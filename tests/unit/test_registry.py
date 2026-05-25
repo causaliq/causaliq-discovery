@@ -77,10 +77,21 @@ def test_variants_unknown_algorithm_raises_value_error():
         AlgorithmRegistry.variants("not-real")
 
 
-# get_adapter raises NotImplementedError for unregistered h2pc.
+# get_adapter raises NotImplementedError when no adapter is registered.
 def test_get_adapter_raises_not_implemented():
-    with pytest.raises(NotImplementedError):
-        AlgorithmRegistry.get_adapter("h2pc", "bnlearn")
+    spec = AlgorithmSpec(
+        algorithm="_temp_algo",
+        variant="_temp_variant",
+        package="test",
+        description="Temp",
+        graph_type="DAG",
+    )
+    AlgorithmRegistry.register_spec(spec)
+    try:
+        with pytest.raises(NotImplementedError):
+            AlgorithmRegistry.get_adapter("_temp_algo", "_temp_variant")
+    finally:
+        del AlgorithmRegistry._specs[("_temp_algo", "_temp_variant")]
 
 
 # get_adapter returns BnlearnAdapter for hc bnlearn variant.
@@ -110,6 +121,18 @@ def test_get_adapter_returns_bnlearn_adapter_for_gs():
 # get_adapter returns BnlearnAdapter for iiamb bnlearn variant.
 def test_get_adapter_returns_bnlearn_adapter_for_iiamb():
     adapter_cls = AlgorithmRegistry.get_adapter("iiamb", "bnlearn")
+    assert adapter_cls is BnlearnAdapter
+
+
+# get_adapter returns BnlearnAdapter for h2pc bnlearn variant.
+def test_get_adapter_returns_bnlearn_adapter_for_h2pc():
+    adapter_cls = AlgorithmRegistry.get_adapter("h2pc", "bnlearn")
+    assert adapter_cls is BnlearnAdapter
+
+
+# get_adapter returns BnlearnAdapter for mmhc bnlearn variant.
+def test_get_adapter_returns_bnlearn_adapter_for_mmhc():
+    adapter_cls = AlgorithmRegistry.get_adapter("mmhc", "bnlearn")
     assert adapter_cls is BnlearnAdapter
 
 

@@ -38,7 +38,7 @@ def test_cli_no_args_shows_usage():
     assert "--input" in result.output or "Usage:" in result.output
 
 
-# Test CLI with a real CSV file runs until NotImplementedError.
+# Test CLI with a real CSV file exits with error for unknown algorithm.
 def test_cli_with_csv_file_runs_until_not_implemented(tmp_path):
     csv_path = tmp_path / "data.csv"
     df = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
@@ -46,13 +46,13 @@ def test_cli_with_csv_file_runs_until_not_implemented(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["-i", str(csv_path), "-a", "h2pc", "-o", "out"],
+        ["-i", str(csv_path), "-a", "not-an-algo", "-o", "out"],
     )
-    assert result.exit_code == 1
-    assert "not yet implemented" in result.output.lower()
+    assert result.exit_code != 0
+    assert "not-an-algo" in result.output.lower()
 
 
-# Test CLI with a real CSV file and hyperparameter reaches algorithm.
+# Test CLI with a real CSV file and hyperparameter parses to dispatch.
 def test_cli_with_csv_file_and_hyperparameter(tmp_path):
     csv_path = tmp_path / "data.csv"
     df = pd.DataFrame({"X": [1, 0, 1], "Y": [0, 1, 0]})
@@ -64,15 +64,15 @@ def test_cli_with_csv_file_and_hyperparameter(tmp_path):
             "-i",
             str(csv_path),
             "-a",
-            "h2pc",
+            "not-an-algo",
             "-o",
             "out",
             "-p",
             "alpha=0.01",
         ],
     )
-    assert result.exit_code == 1
-    assert "not yet implemented" in result.output.lower()
+    assert result.exit_code != 0
+    assert "not-an-algo" in result.output.lower()
 
 
 # Test that invoking script directly will run the CLI
