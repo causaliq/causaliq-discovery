@@ -72,7 +72,7 @@ class CausalIQHCAdapter(PackageAdapter):
 
         Builds the params dict from mapped_hyperparameters (which
         already use hc() parameter names), always adding
-        stable='dec_score'.  The 'bic' score value is remapped to
+        stable='score+'.  The 'bic' score value is remapped to
         'bic-g' for continuous data.  The no_increase=0 default is
         omitted so hc() can apply its own default (tabu list size).
         When trace is True, a non-None context is passed to hc() so
@@ -88,7 +88,7 @@ class CausalIQHCAdapter(PackageAdapter):
         Returns:
             Tuple (DAG, Trace|None) as returned by hc().
         """
-        params: Dict[str, Any] = {"stable": "dec_score"}
+        params: Dict[str, Any] = {"stable": "score+"}
         is_continuous = converted_data.dstype == "continuous"
 
         for key, value in mapped_hyperparameters.items():

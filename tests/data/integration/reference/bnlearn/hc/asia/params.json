@@ -1,0 +1,8 @@
+{
+  "algorithm": "hc",
+  "variant": "bnlearn",
+  "network": "asia",
+  "N": 1000,
+  "score": "bic",
+  "penalty_weight": 1
+}

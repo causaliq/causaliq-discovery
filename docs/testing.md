@@ -7,7 +7,7 @@
 | Unit | `tests/unit/` | Always | Required (100%) |
 | Functional | `tests/functional/` | Always | Required (100%) |
 | Integration | `tests/integration/` | Always | Required (100%) |
-| R integration | `tests/integration/r/` | Manual only | Excluded |
+| R integration | `tests/integration/bnlearn/` | Manual only | Excluded |
 
 ## Running tests locally
 

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="sourceEndpoint" for="edge" attr.name="sourceEndpoint" attr.type="string" />
+  <key id="targetEndpoint" for="edge" attr.name="targetEndpoint" attr.type="string" />
+  <graph id="asia" edgedefault="directed">
+    <node id="asia" />
+    <node id="bronc" />
+    <node id="dysp" />
+    <node id="either" />
+    <node id="lung" />
+    <node id="smoke" />
+    <node id="tub" />
+    <node id="xray" />
+    <edge id="e1" source="either" target="xray">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e2" source="bronc" target="smoke">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e3" source="bronc" target="either">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e4" source="either" target="tub">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e5" source="bronc" target="dysp">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e6" source="either" target="lung">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e7" source="lung" target="tub">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e8" source="dysp" target="either">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e9" source="lung" target="smoke">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+  </graph>
+</graphml>
