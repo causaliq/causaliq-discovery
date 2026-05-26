@@ -68,6 +68,7 @@ nav:
     - Design Notes: 
       - Example: architecture/example_design_note.md
     - Adding Algorithms: architecture/adding-algorithms.md
+  - Testing: testing.md
   - API Reference: 
     - API Overview: api/overview.md
     - CLI: api/cli.md
