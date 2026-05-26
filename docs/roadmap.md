@@ -178,13 +178,13 @@ all CI checks at 100% test coverage.
 - Legacy `call/tests/` tests for these algorithms switched to
   `BnlearnAdapter` once validated (same pattern as Commit 8)
 
-#### Commit 11 — `variant` parameter and CLI completion
+#### ✅ Commit 11 — `variant` parameter and CLI completion
 
 - `variant` parameter wired into algorithm dispatch to select package
 - `cqdisc --help variant <algorithm>` command
 - CLI end-to-end functional tests covering all ten algorithms via subprocess
 
-#### Commit 12 — Closed-loop equivalence testing
+#### ✅ Commit 12 — Closed-loop equivalence testing
 
 - **Test fixtures**: a set of pre-extracted JSON reference files stored in
   `tests/data/reference/` — one per algorithm/dataset/hyperparameter
@@ -204,7 +204,7 @@ all CI checks at 100% test coverage.
   comparison report covering graph differences, score deltas and trace
   divergence
 
-#### Commit 13 — `learn_graph` workflow action
+#### ✅ Commit 13 — `learn_graph` workflow action
 
 - Register `learn_graph` as a CausalIQ workflow action so it can be
   invoked from workflow YAML definitions alongside other actions

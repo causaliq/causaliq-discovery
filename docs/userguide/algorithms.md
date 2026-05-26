@@ -20,10 +20,10 @@ learning process (these are the USPs of the CausalIQ Discovery package).
 |---|---|---|---|
 | [gs](algorithms/gs.md) | constraint | bnlearn | Grow-shrink local discovery |
 | [h2pc](algorithms/h2pc.md) | hybrid | bnlearn | Parents & Children and hill-climbing |
-| [hc](algorithms/hc.md) | score | bnlearn | Hill-climbing |
+| [hc](algorithms/hc.md) | score | CausalIQ, bnlearn | Hill-climbing |
 | [hc-stable](algorithms/hc-stable.md) | score | CausalIQ | Stable hill-climbing |
 | [iiamb](algorithms/iiamb.md) | constraint | bnlearn | Interleaved IAMB local discovery |
 | [mmhc](algorithms/mmhc.md) | hybrid | bnlearn | Markov Blankets and hill-climbing |
 | [pc-stable](algorithms/pc-stable.md) | constraint | bnlearn | Stable PC (Peters & Clark) |
-| [tabu](algorithms/tabu.md) | score | bnlearn | Hill-climbing with tabu list |
+| [tabu](algorithms/tabu.md) | score | CausalIQ, bnlearn | Hill-climbing with tabu list |
 | [tabu-stable](algorithms/tabu-stable.md) | score | CausalIQ | Stable hill-climbing with tabu list |

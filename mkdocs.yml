@@ -63,14 +63,15 @@ nav:
       - tabu: userguide/algorithms/tabu.md
       - tabu-stable: userguide/algorithms/tabu-stable.md
     - Hyperparameters: userguide/hyperparameters.md
-  - Architecture: 
+  - Architecture:
     - Architectural Overview: architecture/overview.md
-    - Design Notes: 
-      - Example: architecture/example_design_note.md
     - Adding Algorithms: architecture/adding-algorithms.md
   - Testing: testing.md
-  - API Reference: 
+  - API Reference:
     - API Overview: api/overview.md
+    - learn_graph & DiscoveryResult: api/learn_graph.md
+    - AlgorithmRegistry: api/registry.md
+    - DiscoveryActionProvider: api/workflow_action.md
     - CLI: api/cli.md
 
 plugins:
