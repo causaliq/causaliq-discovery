@@ -27,11 +27,12 @@ _ARC_SYMBOLS: Dict[str, str] = {
 class CausalIQHCAdapter(PackageAdapter):
     """PackageAdapter wrapping the CausalIQ hc() algorithm.
 
-    Supports the tabu-stable variant: hill-climbing with a tabu list
-    and stable node ordering.  The hc() implementation is ported
-    unchanged from the legacy learn package; this adapter only
-    translates between common causaliq-discovery hyperparameter
-    names/values and the hc() interface.
+    Supports hc, tabu, hc-stable and tabu-stable variants:
+    hill-climbing with optional tabu list and optional stable
+    node ordering.  The hc() implementation is ported unchanged
+    from the legacy learn package; this adapter only translates
+    between common causaliq-discovery hyperparameter names/values
+    and the hc() interface.
     """
 
     def convert_input(
@@ -68,19 +69,22 @@ class CausalIQHCAdapter(PackageAdapter):
         mapped_hyperparameters: Dict[str, Any],
         trace: bool = False,
     ) -> Any:
-        """Run hc() with tabu-stable parameters.
+        """Run hc() with parameters appropriate for the algorithm.
 
         Builds the params dict from mapped_hyperparameters (which
-        already use hc() parameter names), always adding
-        stable='score+'.  The 'bic' score value is remapped to
-        'bic-g' for continuous data.  The no_increase=0 default is
-        omitted so hc() can apply its own default (tabu list size).
-        When trace is True, a non-None context is passed to hc() so
-        the legacy Trace object is populated.
+        already use hc() parameter names).  For stable variants
+        (``hc-stable``, ``tabu-stable``) ``stable='score+'`` is
+        added; for plain ``hc`` and ``tabu`` it is omitted.  The
+        ``bic`` score value is remapped to ``bic-g`` for continuous
+        data.  The no_increase=0 default is omitted so hc() can
+        apply its own default (tabu list size).  When trace is True,
+        a non-None context is passed to hc() so the legacy Trace
+        object is populated.
 
         Args:
             converted_data: Data object from convert_input.
-            algorithm: Algorithm name; unused — always calls hc().
+            algorithm: Algorithm name; used to decide whether to
+                apply stable ordering.
             mapped_hyperparameters: Hyperparameters with names
                 already translated by AlgorithmRegistry name maps.
             trace: If True, pass context to hc() to capture a trace.
@@ -88,7 +92,9 @@ class CausalIQHCAdapter(PackageAdapter):
         Returns:
             Tuple (DAG, Trace|None) as returned by hc().
         """
-        params: Dict[str, Any] = {"stable": "score+"}
+        params: Dict[str, Any] = {}
+        if algorithm in ("hc-stable", "tabu-stable"):
+            params["stable"] = "score+"
         is_continuous = converted_data.dstype == "continuous"
 
         for key, value in mapped_hyperparameters.items():

@@ -145,13 +145,32 @@ def learn_graph(
     return DiscoveryResult(graph=graph, metadata=metadata, trace=result_trace)
 
 
-__all__ = [
-    "__version__",
-    "__author__",
-    "__email__",
-    "VERSION",
-    "DiscoveryResult",
-    "learn_graph",
-    "VariableType",
-    "AlgorithmRegistry",
-]
+try:
+    from causaliq_discovery.workflow_action import (  # noqa: E402,F401
+        ActionProvider,
+        DiscoveryActionProvider,
+    )
+
+    __all__ = [
+        "__version__",
+        "__author__",
+        "__email__",
+        "VERSION",
+        "DiscoveryResult",
+        "learn_graph",
+        "VariableType",
+        "AlgorithmRegistry",
+        "ActionProvider",
+        "DiscoveryActionProvider",
+    ]
+except ImportError:
+    __all__ = [
+        "__version__",
+        "__author__",
+        "__email__",
+        "VERSION",
+        "DiscoveryResult",
+        "learn_graph",
+        "VariableType",
+        "AlgorithmRegistry",
+    ]

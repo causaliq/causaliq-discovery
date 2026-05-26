@@ -423,6 +423,26 @@ for _spec in [
     ),
     AlgorithmSpec(
         algorithm="hc",
+        variant="causaliq",
+        package="CausalIQ",
+        description="Hill-climbing",
+        graph_type="DAG",
+        algorithm_class="score",
+        supported_hyperparameters=_SCORE_HYPERPARAMETERS,
+        hyperparameter_defaults=_SCORE_DEFAULTS,
+        hyperparameter_name_map={
+            "max_iterations": "maxiter",
+            "penalty_weight": "k",
+        },
+        paper_ref=(
+            "Chickering D.M. (2002) – Optimal Structure "
+            "Identification with Greedy Search. "
+            "J. Mach. Learn. Res. 3, 507\u2013554."
+        ),
+        paper_url="https://jmlr.org/papers/v3/chickering02b.html",
+    ),
+    AlgorithmSpec(
+        algorithm="hc",
         variant="bnlearn",
         package="bnlearn",
         description="Hill-climbing",
@@ -440,6 +460,27 @@ for _spec in [
             "J. Mach. Learn. Res. 3, 507\u2013554."
         ),
         paper_url="https://jmlr.org/papers/v3/chickering02b.html",
+    ),
+    AlgorithmSpec(
+        algorithm="tabu",
+        variant="causaliq",
+        package="CausalIQ",
+        description="Hill-climbing with tabu list",
+        graph_type="DAG",
+        algorithm_class="score",
+        supported_hyperparameters=_TABU_HYPERPARAMETERS,
+        hyperparameter_defaults=_TABU_DEFAULTS,
+        hyperparameter_name_map={
+            "max_iterations": "maxiter",
+            "penalty_weight": "k",
+            "tabulist_len": "tabu",
+            "no_increase": "noinc",
+        },
+        paper_ref=(
+            "Glover F. (1989) – Tabu Search. "
+            "ORSA J. Computing 1(3), 190\u2013206."
+        ),
+        paper_url="https://doi.org/10.1287/ijoc.1.3.190",
     ),
     AlgorithmSpec(
         algorithm="tabu",
@@ -581,6 +622,8 @@ AlgorithmRegistry.register_adapter("hc-stable", "causaliq", CausalIQHCAdapter)
 AlgorithmRegistry.register_adapter(
     "tabu-stable", "causaliq", CausalIQHCAdapter
 )
+AlgorithmRegistry.register_adapter("hc", "causaliq", CausalIQHCAdapter)
+AlgorithmRegistry.register_adapter("tabu", "causaliq", CausalIQHCAdapter)
 
 from causaliq_discovery.algorithms.bnlearn import (  # noqa: E402
     BnlearnAdapter,
