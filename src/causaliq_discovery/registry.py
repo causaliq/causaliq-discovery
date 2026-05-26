@@ -375,8 +375,40 @@ _CONSTRAINT_DEFAULTS: Dict[str, Any] = {
 from causaliq_discovery.algorithms.causaliq_hc import (  # noqa: E402
     CausalIQHCAdapter,
 )
+from causaliq_discovery.algorithms.tetrad import (  # noqa: E402
+    TetradAdapter,
+)
 
 for _spec in [
+    AlgorithmSpec(
+        algorithm="fges",
+        variant="tetrad",
+        package="Tetrad/causal-cmd",
+        description="Fast Greedy Equivalence Search",
+        graph_type="PDAG",
+        algorithm_class="score",
+        supported_hyperparameters={
+            "score",
+            "iss",
+            "penalty_weight",
+            "max_elapsed",
+        },
+        hyperparameter_defaults={
+            "score": "bic",
+            "iss": 1.0,
+            "penalty_weight": 1.0,
+        },
+        hyperparameter_name_map={
+            "penalty_weight": "k",
+        },
+        paper_ref=(
+            "Ramsey J. et al. (2017) – A million variables and "
+            "more: the Fast Greedy Equivalence Search algorithm "
+            "for learning high-dimensional graphical causal models. "
+            "Int. J. Data Sci. Anal. 3, 121–129."
+        ),
+        paper_url="https://doi.org/10.1007/s41060-016-0032-z",
+    ),
     AlgorithmSpec(
         algorithm="hc-stable",
         variant="causaliq",
@@ -624,6 +656,7 @@ AlgorithmRegistry.register_adapter(
 )
 AlgorithmRegistry.register_adapter("hc", "causaliq", CausalIQHCAdapter)
 AlgorithmRegistry.register_adapter("tabu", "causaliq", CausalIQHCAdapter)
+AlgorithmRegistry.register_adapter("fges", "tetrad", TetradAdapter)
 
 from causaliq_discovery.algorithms.bnlearn import (  # noqa: E402
     BnlearnAdapter,

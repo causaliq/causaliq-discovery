@@ -3,6 +3,7 @@
 import pytest
 
 from causaliq_discovery.algorithms.bnlearn import BnlearnAdapter
+from causaliq_discovery.algorithms.tetrad import TetradAdapter
 from causaliq_discovery.registry import (
     HYPERPARAMETER_SPECS,
     AlgorithmRegistry,
@@ -11,10 +12,11 @@ from causaliq_discovery.registry import (
 )
 
 
-# All nine initial algorithms are registered.
+# All initial algorithms are registered.
 def test_registry_contains_all_initial_algorithms():
     algorithms = AlgorithmRegistry.algorithms()
     expected = {
+        "fges",
         "gs",
         "hc",
         "hc-stable",
@@ -48,6 +50,13 @@ def test_bnlearn_algorithms_have_bnlearn_variant():
         spec = AlgorithmRegistry.get_spec(alg, "bnlearn")
         assert spec.variant == "bnlearn"
         assert spec.package == "bnlearn"
+
+
+# Tetrad FGES is registered with tetrad variant.
+def test_tetrad_fges_has_tetrad_variant():
+    spec = AlgorithmRegistry.get_spec("fges", "tetrad")
+    assert spec.variant == "tetrad"
+    assert spec.package == "Tetrad/causal-cmd"
 
 
 # get_spec with variant=None uses the first registered variant.
@@ -136,6 +145,12 @@ def test_get_adapter_returns_bnlearn_adapter_for_h2pc():
 def test_get_adapter_returns_bnlearn_adapter_for_mmhc():
     adapter_cls = AlgorithmRegistry.get_adapter("mmhc", "bnlearn")
     assert adapter_cls is BnlearnAdapter
+
+
+# get_adapter returns TetradAdapter for fges tetrad variant.
+def test_get_adapter_returns_tetrad_adapter_for_fges():
+    adapter_cls = AlgorithmRegistry.get_adapter("fges", "tetrad")
+    assert adapter_cls is TetradAdapter
 
 
 # register_spec adds a new spec retrievable by get_spec.
@@ -312,7 +327,7 @@ def test_all_registered_specs_have_algorithm_class():
 
 # Score-based algorithms carry class 'score'.
 def test_score_algorithms_have_score_class():
-    for alg in ("hc", "tabu", "hc-stable", "tabu-stable"):
+    for alg in ("fges", "hc", "tabu", "hc-stable", "tabu-stable"):
         spec = AlgorithmRegistry.get_spec(alg, None)
         assert spec.algorithm_class == "score"
 
