@@ -53,6 +53,7 @@ nav:
     - User Guide Introduction: userguide/index.md
     - Algorithms:
       - Supported Algorithms: userguide/algorithms.md
+      - fges: userguide/algorithms/fges.md
       - gs: userguide/algorithms/gs.md
       - h2pc: userguide/algorithms/h2pc.md
       - hc: userguide/algorithms/hc.md
@@ -71,6 +72,7 @@ nav:
     - API Overview: api/overview.md
     - learn_graph & DiscoveryResult: api/learn_graph.md
     - AlgorithmRegistry: api/registry.md
+    - Adapters: api/adapters.md
     - DiscoveryActionProvider: api/workflow_action.md
     - CLI: api/cli.md
 

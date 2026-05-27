@@ -1,6 +1,6 @@
 # CausalIQ Discovery - Development Roadmap
 
-**Last updated**: May 25, 2026  
+**Last updated**: May 27, 2026  
 
 This project roadmap fits into the [overall ecosystem roadmap](https:/https://causaliq.org/projects/ecosystem_roadmap/)
 
@@ -221,6 +221,30 @@ all CI checks at 100% test coverage.
   `<base>/<algorithm>/<variant>/sample_<n>/`)
 - Functional tests covering single-call and matrix-expansion cases
 
+#### ✅ Commit 14 — Tetrad FGES Java integration and reference testing
+
+- Add Java subprocess runtime utilities in `causaliq-core` (analogous to
+  the R integration layer): executable discovery, command execution,
+  timeout handling, typed runtime errors, and availability checks
+- Add `TetradAdapter` in `causaliq-discovery` with initial support for
+  `fges` only
+- Use `causal-cmd-1.3.0-jar-with-dependencies.jar` for paper-aligned FGES
+  runs (published experiment compatibility)
+- Keep Tetrad algorithm-specific parameter mapping and output parsing in
+  `causaliq-discovery`; keep generic Java process management in
+  `causaliq-core`
+- Add `java_integration` tests, mirroring the `r_integration` strategy:
+  excluded from CI coverage gates and auto-skipped when Java/JAR is not
+  available
+- Add a reproducible JAR fetch helper at
+  `tests/integration/setup/fetch-causal-cmd-jar.ps1` for local and
+  manual GitHub Actions integration runs
+- Add a profile-based manual GitHub Actions workflow for one-click runs
+  with pinned tag, asset name and SHA256 checksum defaults
+- Add a committed Tetrad FGES reference fixture derived from legacy
+  traces (`tests/data/integration/reference/tetrad/fges/asia/`)
+  and verify graph equivalence via `java_integration` tests
+
 ---
 
 ## ✅ Previous Releases
@@ -232,8 +256,15 @@ all CI checks at 100% test coverage.
 
 ## 🛣️ Upcoming Releases
 
-- **Release v1.1.0 Tetrad**: Add FGES and further Tetrad algorithms via
-  py-tetrad wrapper
+- **Post-v1.0.0 validation and reproducibility work**
+
+  - Run manual workflow experiments in `causaliq-research` to validate
+    end-to-end usage patterns across repositories
+  - Extend R integration coverage in other CausalIQ repositories where
+    parity is still incomplete
+  - Add `causaliq-analysis` workflow/action support to compare graphs
+    learned by the CausalIQ ecosystem against legacy `pkl.gz` results,
+    to start formal reproducibility tracking across migrated pipelines
 
 - **Release v2.0.0 Knowledge**: Structure learning guided by required and
   forbidden arc constraints from the CausalIQ Knowledge package

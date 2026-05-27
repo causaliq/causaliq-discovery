@@ -16,7 +16,7 @@ understood, and a strong baseline against which more sophisticated algorithms
 are compared.
 
 **Class:** score · DAG
-**Package:** CausalIQ (default), bnlearn
+**Package:** CausalIQ
 
 ## Reference
 
@@ -36,7 +36,7 @@ J. Mach. Learn. Res. 3, 507–554.
 
 ## Variants
 
-| Variant | Package | Default |
-|---|---|---|
-| causaliq | CausalIQ | ✅ |
-| bnlearn | bnlearn | |
+| Variant | Package |
+|---|---|
+| bnlearn | bnlearn |
+| causaliq | CausalIQ |

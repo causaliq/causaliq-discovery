@@ -18,6 +18,11 @@ specifications and adapter classes.  Includes `AlgorithmSpec` and
 `HyperparameterSpec` dataclasses that describe each algorithm's
 hyperparameters, type translations, and graph output type.
 
+### [Adapters](adapters.md)
+
+Adapter interface and concrete implementations. Documents
+`PackageAdapter`, `BnlearnAdapter`, and `TetradAdapter`.
+
 ### [DiscoveryActionProvider](workflow_action.md)
 
 The CausalIQ workflow action integration.  `DiscoveryActionProvider`

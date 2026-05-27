@@ -16,7 +16,7 @@ plateaux. Tabu is generally more robust than plain HC at the cost of slightly
 higher runtime.
 
 **Class:** score · DAG
-**Package:** CausalIQ (default), bnlearn
+**Package:** CausalIQ
 
 ## Reference
 
@@ -37,7 +37,7 @@ Glover F. (1989) – Tabu Search. ORSA J. Computing 1(3), 190–206.
 
 ## Variants
 
-| Variant | Package | Default |
-|---|---|---|
-| causaliq | CausalIQ | ✅ |
-| bnlearn | bnlearn | |
+| Variant | Package |
+|---|---|
+| bnlearn | bnlearn |
+| causaliq | CausalIQ |

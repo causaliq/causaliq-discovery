@@ -46,6 +46,24 @@ Advanced algorithms for learning causal structures from data and human & LLM-der
 
 _to be defined_
 
+### Tetrad Runtime Setup
+
+Tetrad algorithms require Java 17+ and the `causal-cmd` JAR artefact.
+Set `CQ_JAVA_DIR` to the directory containing the JAR:
+
+```powershell
+$env:CQ_JAVA_DIR = "C:\path\to\java-artefacts"
+```
+
+Current Tetrad support expects this file under `CQ_JAVA_DIR`:
+
+- `causal-cmd-1.3.0.jar`
+
+Download the JAR from the
+[GitHub releases page](https://github.com/causaliq/causaliq-discovery/releases).
+See the [Algorithm User Guide](docs/userguide/algorithms.md) for full
+details.
+
 ---
 
 ## Integration with CausalIQ Ecosystem
@@ -124,6 +142,10 @@ This repository is part of the CausalIQ ecosystem. For development setup:
 2. Run `scripts/setup-env -Install` to set up environments  
 3. Run `scripts/check_ci` to verify all tests pass
 4. Start documentation server with `mkdocs serve`
+
+For full details on running tests (including R and Java integration
+tests and the associated one-off secret setup), see
+[docs/testing.md](docs/testing.md).
 
 ---
 
