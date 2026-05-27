@@ -4,5 +4,6 @@
   "network": "asia",
   "N": 1000,
   "score": "bic",
-  "penalty_weight": 1
+  "penalty_weight": 1,
+  "iss": null
 }

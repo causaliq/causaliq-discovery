@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="sourceEndpoint" for="edge" attr.name="sourceEndpoint" attr.type="string" />
+  <key id="targetEndpoint" for="edge" attr.name="targetEndpoint" attr.type="string" />
+  <graph id="asia" edgedefault="undirected">
+    <node id="asia" />
+    <node id="bronc" />
+    <node id="dysp" />
+    <node id="either" />
+    <node id="lung" />
+    <node id="smoke" />
+    <node id="tub" />
+    <node id="xray" />
+    <edge id="e1" source="bronc" target="dysp">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">none</data>
+    </edge>
+    <edge id="e2" source="bronc" target="smoke">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">none</data>
+    </edge>
+    <edge id="e3" source="either" target="xray" directed="true">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e4" source="lung" target="either" directed="true">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+    <edge id="e5" source="lung" target="smoke">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">none</data>
+    </edge>
+    <edge id="e6" source="tub" target="either" directed="true">
+      <data key="sourceEndpoint">none</data>
+      <data key="targetEndpoint">arrow</data>
+    </edge>
+  </graph>
+</graphml>

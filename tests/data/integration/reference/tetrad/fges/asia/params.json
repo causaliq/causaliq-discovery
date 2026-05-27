@@ -1,6 +1,6 @@
 {
-  "algorithm": "tabu",
-  "variant": "bnlearn",
+  "algorithm": "fges",
+  "variant": "tetrad",
   "network": "asia",
   "N": 1000,
   "score": "bic",

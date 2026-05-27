@@ -33,6 +33,7 @@ REFERENCE_OUT = OUT_ROOT / "reference"
 _SERIES = [
     ("BNLEARN/HC_STD/asia", "hc", "bnlearn"),
     ("BNLEARN/TABU_STD/asia", "tabu", "bnlearn"),
+    ("TETRAD/FGES_STD/asia", "fges", "tetrad"),
 ]
 
 _SAMPLE_KEY = "N1000"
@@ -88,6 +89,7 @@ def _extract_reference(
         "N": trace.context.get("N"),
         "score": trace.context.get("params", {}).get("score"),
         "penalty_weight": trace.context.get("params", {}).get("k"),
+        "iss": trace.context.get("params", {}).get("iss"),
     }
     params_path = out_dir / "params.json"
     params_path.write_text(json.dumps(params, indent=2), encoding="utf-8")

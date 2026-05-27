@@ -140,41 +140,52 @@ def test_parse_output_returns_pdag_for_undirected_edges(
     assert isinstance(graph, PDAG)
 
 
-# missing CQ_CAUSAL_CMD_JAR environment setting raises RuntimeError.
+# missing CQ_JAVA_DIR environment setting raises RuntimeError.
 def test_resolve_causal_cmd_jar_missing_env_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("CQ_CAUSAL_CMD_JAR", raising=False)
+    monkeypatch.delenv("CQ_JAVA_DIR", raising=False)
 
-    with pytest.raises(RuntimeError, match="CQ_CAUSAL_CMD_JAR"):
+    with pytest.raises(RuntimeError, match="CQ_JAVA_DIR"):
         _resolve_causal_cmd_jar()
 
 
-# resolve_causal_cmd_jar returns path when env points to a file.
+# resolve_causal_cmd_jar returns path when jar exists in CQ_JAVA_DIR.
 def test_resolve_causal_cmd_jar_returns_existing_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    jar = tmp_path / "causal-cmd.jar"
+    jar = tmp_path / "causal-cmd-1.3.0.jar"
     jar.write_text("x", encoding="utf-8")
-    monkeypatch.setenv("CQ_CAUSAL_CMD_JAR", str(jar))
+    monkeypatch.setenv("CQ_JAVA_DIR", str(tmp_path))
 
     resolved = _resolve_causal_cmd_jar()
 
     assert resolved == str(jar)
 
 
-# resolve_causal_cmd_jar raises FileNotFoundError for missing path.
-def test_resolve_causal_cmd_jar_missing_file_raises(
+# resolve_causal_cmd_jar raises FileNotFoundError for missing jar file.
+def test_resolve_causal_cmd_jar_missing_jar_file_raises(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    missing = tmp_path / "not-here.jar"
-    monkeypatch.setenv("CQ_CAUSAL_CMD_JAR", str(missing))
+    monkeypatch.setenv("CQ_JAVA_DIR", str(tmp_path))
 
     with pytest.raises(
         FileNotFoundError, match="Causal command JAR not found"
     ):
+        _resolve_causal_cmd_jar()
+
+
+# resolve_causal_cmd_jar raises FileNotFoundError for missing dir path.
+def test_resolve_causal_cmd_jar_missing_dir_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing_dir = tmp_path / "missing"
+    monkeypatch.setenv("CQ_JAVA_DIR", str(missing_dir))
+
+    with pytest.raises(FileNotFoundError, match="CQ_JAVA_DIR path"):
         _resolve_causal_cmd_jar()
 
 
@@ -238,7 +249,7 @@ def test_run_executes_java_and_parses_output(
 ) -> None:
     jar = tmp_path / "causal-cmd-1.3.0.jar"
     jar.write_text("dummy", encoding="utf-8")
-    monkeypatch.setenv("CQ_CAUSAL_CMD_JAR", str(jar))
+    monkeypatch.setenv("CQ_JAVA_DIR", str(tmp_path))
 
     captured: Dict[str, Any] = {}
 

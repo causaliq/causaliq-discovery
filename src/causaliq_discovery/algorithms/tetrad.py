@@ -29,6 +29,7 @@ _START_SEARCH = "Start search: "
 _END_SEARCH = "End search: "
 _START_EDGES = "Graph Edges:"
 _EDGE_PATTERN = re.compile(r"^\d+\.\s(\S+)\s([\-o<])\-([\-o>])\s(\S+)$")
+_CAUSAL_CMD_JAR_NAME = "causal-cmd-1.3.0.jar"
 
 
 class TetradRunOutput(TypedDict):
@@ -173,12 +174,16 @@ def _resolve_causal_cmd_jar() -> str:
         RuntimeError: If environment variable is not set.
         FileNotFoundError: If configured JAR path does not exist.
     """
-    jar_path = os.environ.get("CQ_CAUSAL_CMD_JAR", "")
-    if not jar_path:
+    java_dir = os.environ.get("CQ_JAVA_DIR", "")
+    if not java_dir:
         raise RuntimeError(
-            "CQ_CAUSAL_CMD_JAR is not set. Configure it to point "
-            "to the causal-cmd JAR file."
+            "CQ_JAVA_DIR is not set. Configure it to point to the "
+            "directory containing Java runtime artefacts."
         )
+    if not os.path.isdir(java_dir):
+        raise FileNotFoundError(f"CQ_JAVA_DIR path does not exist: {java_dir}")
+
+    jar_path = os.path.join(java_dir, _CAUSAL_CMD_JAR_NAME)
     if not os.path.isfile(jar_path):
         raise FileNotFoundError(f"Causal command JAR not found: {jar_path}")
     return jar_path
