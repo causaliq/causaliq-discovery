@@ -130,6 +130,20 @@ def test_validate_valid_single_sample_size_ok() -> None:
     )
 
 
+# validate_parameters accepts stringified single sample_size from templating.
+def test_validate_string_single_sample_size_ok() -> None:
+    provider = DiscoveryActionProvider()
+    provider.validate_parameters(
+        "learn_graph",
+        {
+            "input": "data.csv",
+            "algorithm": "hc-stable",
+            "output": "/out",
+            "sample_size": "100",
+        },
+    )
+
+
 # validate_parameters accepts valid list of sample_sizes.
 def test_validate_valid_list_sample_size_ok() -> None:
     provider = DiscoveryActionProvider()
@@ -384,10 +398,39 @@ def test_parse_sample_sizes_list_unchanged() -> None:
     assert _parse_sample_sizes([500, 1000]) == [500, 1000]
 
 
-# _parse_sample_sizes raises for string input.
+# _parse_sample_sizes returns list when given a parseable string.
+def test_parse_sample_sizes_string_parses_single() -> None:
+    assert _parse_sample_sizes("100") == [100]
+
+
+# _parse_sample_sizes parses a string via int() when literal_eval fails.
+def test_parse_sample_sizes_string_int_fallback() -> None:
+    # "0100" fails ast.literal_eval (not valid Py3 literal) but int() = 100.
+    assert _parse_sample_sizes("0100") == [100]
+
+
+# _parse_sample_sizes raises for an unparseable string.
 def test_parse_sample_sizes_string_raises() -> None:
     with pytest.raises(ActionValidationError):
-        _parse_sample_sizes("500")
+        _parse_sample_sizes("not-an-int")
+
+
+# _parse_sample_sizes raises for a bool value.
+def test_parse_sample_sizes_bool_raises() -> None:
+    with pytest.raises(ActionValidationError):
+        _parse_sample_sizes(True)
+
+
+# _parse_sample_sizes raises for an invalid type.
+def test_parse_sample_sizes_invalid_type_raises() -> None:
+    with pytest.raises(ActionValidationError):
+        _parse_sample_sizes(3.14)
+
+
+# _parse_sample_sizes raises when a list element is bool.
+def test_parse_sample_sizes_bool_in_list_raises() -> None:
+    with pytest.raises(ActionValidationError):
+        _parse_sample_sizes([True, 500])
 
 
 # _parse_sample_sizes raises for non-positive int in list.

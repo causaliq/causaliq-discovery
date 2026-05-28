@@ -5,6 +5,7 @@ This module implements the Action interface for causaliq-workflow
 integration, enabling learn_graph to be used in workflow definitions.
 """
 
+import ast
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -119,7 +120,8 @@ def _parse_sample_sizes(
 ) -> Optional[List[int]]:
     """Parse the sample_size parameter to a list of positive ints.
 
-    Accepts a single positive integer or a list of positive integers.
+    Accepts a single positive integer, a list of positive integers,
+    or a stringified int/list produced by workflow templating.
     Returns None when the input is None (meaning use all rows).
 
     Args:
@@ -136,26 +138,46 @@ def _parse_sample_sizes(
         [500]
         >>> _parse_sample_sizes([500, 1000])
         [500, 1000]
+        >>> _parse_sample_sizes("100")
+        [100]
         >>> _parse_sample_sizes(None) is None
         True
     """
     if sample_size is None:
         return None
+    if isinstance(sample_size, str):
+        try:
+            sample_size = ast.literal_eval(sample_size)
+        except (ValueError, SyntaxError):
+            try:
+                sample_size = int(sample_size.strip())
+            except (TypeError, ValueError) as exc:
+                raise ActionValidationError(
+                    f"'sample_size' must be an int or list of ints; "
+                    f"got {sample_size!r}."
+                ) from exc
+    if isinstance(sample_size, bool):
+        raise ActionValidationError(
+            f"'sample_size' must be an int or list of ints; "
+            f"got {type(sample_size).__name__}."
+        )
     if isinstance(sample_size, int):
-        sizes: List[int] = [sample_size]
-    elif isinstance(sample_size, list):
-        sizes = sample_size
+        items: List[Any] = [sample_size]
+    elif isinstance(sample_size, (list, tuple)):
+        items = list(sample_size)
     else:
         raise ActionValidationError(
             f"'sample_size' must be an int or list of ints; "
             f"got {type(sample_size).__name__}."
         )
-    for s in sizes:
-        if not isinstance(s, int) or s <= 0:
+    sizes: List[int] = []
+    for s in items:
+        if isinstance(s, bool) or not isinstance(s, int) or s <= 0:
             raise ActionValidationError(
                 f"Each sample_size value must be a positive int; "
                 f"got {s!r}."
             )
+        sizes.append(s)
     return sizes
 
 
