@@ -75,6 +75,9 @@ Repository = "https://github.com/causaliq/causaliq-discovery"
 causaliq-discovery = "causaliq_discovery.cli:main"
 cqdisc = "causaliq_discovery.cli:main"
 
+[project.entry-points."causaliq.actions"]
+causaliq-discovery = "causaliq_discovery:ActionProvider"
+
 [tool.setuptools.dynamic]
 version = {attr = "causaliq_discovery.__version__"}
 
