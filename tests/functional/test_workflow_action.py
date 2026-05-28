@@ -91,13 +91,23 @@ def test_validate_missing_algorithm_raises() -> None:
         )
 
 
-# validate_parameters raises when output is missing.
-def test_validate_missing_output_raises() -> None:
+# validate_parameters allows missing output for workflow cache mode.
+def test_validate_missing_output_ok() -> None:
+    provider = DiscoveryActionProvider()
+    provider.validate_parameters(
+        "learn_graph",
+        {"input": "data.csv", "algorithm": "hc-stable"},
+    )
+
+
+# run mode without output and without cache context raises validation error.
+def test_run_missing_output_without_cache_context_raises() -> None:
     provider = DiscoveryActionProvider()
     with pytest.raises(ActionValidationError, match="output"):
-        provider.validate_parameters(
+        provider.run(
             "learn_graph",
-            {"input": "data.csv", "algorithm": "hc-stable"},
+            {"input": _DISCRETE_CSV, "algorithm": "hc-stable"},
+            mode="run",
         )
 
 
@@ -214,7 +224,7 @@ def test_dry_run_matrix_planned_outputs_paths() -> None:
     assert all("causaliq" in p for p in planned)
 
 
-# Single learn_graph run writes graph.graphml and metadata.json.
+# Single learn_graph run writes graph.graphml and _meta.json.
 def test_single_run_writes_output_files(tmp_path: Path) -> None:
     provider = DiscoveryActionProvider()
     status, metadata, _ = provider.run(
@@ -230,7 +240,7 @@ def test_single_run_writes_output_files(tmp_path: Path) -> None:
     assert metadata["num_runs"] == 1
     out_dir = Path(metadata["outputs"][0])
     assert (out_dir / "graph.graphml").exists()
-    assert (out_dir / "metadata.json").exists()
+    assert (out_dir / "_meta.json").exists()
 
 
 # Single run output directory uses algorithm-only sub-path (no variant).
@@ -269,7 +279,7 @@ def test_matrix_run_creates_per_sample_directories(
     assert metadata["num_runs"] == 2
     for out_dir in metadata["outputs"]:
         assert (Path(out_dir) / "graph.graphml").exists()
-        assert (Path(out_dir) / "metadata.json").exists()
+        assert (Path(out_dir) / "_meta.json").exists()
 
 
 # Matrix run output dirs contain 'sample_<n>' in path.
@@ -344,8 +354,8 @@ def test_matrix_run_reads_data_once(
     assert call_count == 1
 
 
-# metadata.json written by single run contains algorithm key.
-def test_single_run_metadata_json_content(tmp_path: Path) -> None:
+# _meta.json written by single run contains convention metadata payload.
+def test_single_run_meta_json_content(tmp_path: Path) -> None:
     provider = DiscoveryActionProvider()
     _, metadata, _ = provider.run(
         "learn_graph",
@@ -356,10 +366,136 @@ def test_single_run_metadata_json_content(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    meta_path = Path(metadata["outputs"][0]) / "metadata.json"
+    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    assert saved["algorithm"] == "hc-stable"
+    assert (
+        saved["metadata"]["causaliq-discovery"]["learn_graph"]["algorithm"]
+        == "hc-stable"
+    )
+    assert saved["objects"]["dag"]["format"] == "graphml"
+    elapsed = saved["metadata"]["causaliq-discovery"]["learn_graph"][
+        "elapsed_seconds"
+    ]
+    assert isinstance(elapsed, float)
+    assert elapsed >= 0.0
+
+
+# .db cache output returns graph objects instead of output directories.
+def test_db_output_returns_objects(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    status, metadata, objects = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "learn.db"),
+            "sample_size": 5,
+        },
+        mode="run",
+    )
+    assert status == "success"
+    assert "outputs" not in metadata
+    assert metadata["algorithm"] == "hc-stable"
+    assert metadata["graph_type"] == "DAG"
+    assert isinstance(metadata["elapsed_seconds"], float)
+    assert metadata["elapsed_seconds"] >= 0.0
+    assert any(
+        o["type"] == "dag"
+        and o["format"] == "graphml"
+        and o["action"] == "learn_graph"
+        for o in objects
+    )
+
+
+# .db cache output rejects list sample_size and requires one value.
+def test_db_output_rejects_sample_size_list(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    with pytest.raises(ActionValidationError, match="single value"):
+        provider.run(
+            "learn_graph",
+            {
+                "input": _DISCRETE_CSV,
+                "algorithm": "hc-stable",
+                "output": str(tmp_path / "learn.db"),
+                "sample_size": [100, 200],
+            },
+            mode="run",
+        )
+
+
+# .db cache output supports omitted sample_size and returns trace object.
+def test_db_output_without_sample_size_with_trace(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    status, metadata, objects = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "learn.db"),
+            "trace": True,
+        },
+        mode="run",
+    )
+    assert status == "success"
+    assert metadata["num_runs"] == 1
+    assert isinstance(metadata["elapsed_seconds"], float)
+    assert metadata["elapsed_seconds"] >= 0.0
+    assert any(
+        o["type"] == "trace"
+        and o["format"] == "json"
+        and o["action"] == "learn_graph"
+        for o in objects
+    )
+
+
+# Workflow cache mode works when output is consumed at workflow level.
+def test_cache_context_without_output_returns_objects() -> None:
+    provider = DiscoveryActionProvider()
+
+    class DummyContext:
+        mode = "run"
+        matrix = {}
+        matrix_values = {"algorithm": "hc", "network": "asia"}
+        cache = object()
+
+    status, metadata, objects = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "sample_size": 5,
+        },
+        mode="run",
+        context=DummyContext(),
+    )
+    assert status == "success"
+    assert "outputs" not in metadata
+    assert any(
+        o["type"] == "dag"
+        and o["format"] == "graphml"
+        and o["action"] == "learn_graph"
+        for o in objects
+    )
+
+
+# Directory output writes trace object metadata in _meta.json when traced.
+def test_single_run_meta_json_includes_trace_object(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    _, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+            "trace": True,
+        },
+        mode="run",
+    )
+    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    with open(meta_path) as f:
+        saved = json.load(f)
+    assert saved["objects"]["trace"]["format"] == "json"
 
 
 # _build_output_dir with variant and sample_size produces correct path.

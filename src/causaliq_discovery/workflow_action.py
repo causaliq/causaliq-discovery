@@ -6,8 +6,12 @@ integration, enabling learn_graph to be used in workflow definitions.
 """
 
 import ast
+import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from io import StringIO
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # Check if workflow is available at runtime
@@ -76,6 +80,8 @@ else:
         class WorkflowLogger:  # type: ignore[no-redef]
             pass
 
+
+from causaliq_core.graph.io import graphml  # noqa: E402
 
 from causaliq_discovery.input import normalise_data  # noqa: E402
 
@@ -179,6 +185,78 @@ def _parse_sample_sizes(
             )
         sizes.append(s)
     return sizes
+
+
+def _is_workflow_cache_path(output_path: str) -> bool:
+    """Return True when output targets a workflow cache DB file."""
+    return output_path.lower().endswith(".db")
+
+
+def _build_action_metadata(
+    *,
+    input_path: str,
+    algorithm: str,
+    variant: Optional[str],
+    sample_size: Optional[int],
+    result_metadata: Dict[str, Any],
+    graph_num_nodes: int,
+    graph_num_edges: int,
+    include_trace: bool,
+    elapsed_seconds: float,
+    algorithm_seconds: float,
+    output_seconds: float,
+) -> Dict[str, Any]:
+    """Build learn_graph metadata payload for workflow outputs."""
+    return {
+        "algorithm": algorithm,
+        "variant": result_metadata.get("variant", variant),
+        "hyperparameters": result_metadata.get("hyperparameters", {}),
+        "sample_size": sample_size,
+        "input": input_path,
+        "graph_type": "DAG",
+        "num_nodes": graph_num_nodes,
+        "num_edges": graph_num_edges,
+        "trace": include_trace,
+        "elapsed_seconds": elapsed_seconds,
+        "algorithm_seconds": algorithm_seconds,
+        "output_seconds": output_seconds,
+    }
+
+
+def _build_objects_metadata(include_trace: bool) -> Dict[str, Dict[str, str]]:
+    """Build CausalIQ-style object descriptors for metadata envelopes."""
+    objects: Dict[str, Dict[str, str]] = {
+        "dag": {"format": "graphml", "action": "learn_graph"}
+    }
+    if include_trace:
+        objects["trace"] = {"format": "json", "action": "learn_graph"}
+    return objects
+
+
+def _write_meta_json(
+    output_dir: str,
+    *,
+    algorithm: str,
+    variant: Optional[str],
+    sample_size: Optional[int],
+    metadata: Dict[str, Any],
+    include_trace: bool,
+) -> None:
+    """Write workflow-convention `_meta.json` alongside result files."""
+    wrapped_metadata = {"causaliq-discovery": {"learn_graph": metadata}}
+    meta = {
+        "matrix_values": {
+            "algorithm": algorithm,
+            "variant": variant,
+            "sample_size": sample_size,
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "metadata": wrapped_metadata,
+        "objects": _build_objects_metadata(include_trace),
+    }
+    meta_path = os.path.join(output_dir, "_meta.json")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2)
 
 
 class DiscoveryActionProvider(CausalIQActionProvider):
@@ -323,11 +401,15 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 raise ValueError(
                     "'learn_graph' requires an 'algorithm' parameter."
                 )
-            if not parameters.get("output"):
-                raise ValueError(
-                    "'learn_graph' requires an 'output' directory."
-                )
-            _parse_sample_sizes(parameters.get("sample_size"))
+            sizes = _parse_sample_sizes(parameters.get("sample_size"))
+            output_value = str(parameters.get("output", ""))
+            if _is_workflow_cache_path(output_value):
+                if sizes is not None and len(sizes) != 1:
+                    raise ValueError(
+                        "When output is a .db workflow cache, "
+                        "'sample_size' must be a single value. "
+                        "Use workflow matrix expansion for multiple runs."
+                    )
         except ValueError as e:
             raise ActionValidationError(str(e))
 
@@ -438,7 +520,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
 
         input_path: str = parameters["input"]
         algorithm: str = parameters["algorithm"]
-        output_base: str = parameters["output"]
+        output_base = str(parameters.get("output", ""))
         variant: Optional[str] = parameters.get("variant")
         hyperparameters: Optional[Dict[str, Any]] = parameters.get(
             "hyperparameters"
@@ -447,50 +529,138 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         variable_types = parameters.get("variable_types")
 
         sizes = _parse_sample_sizes(parameters.get("sample_size"))
+        has_workflow_cache = bool(
+            context is not None and getattr(context, "cache", None) is not None
+        )
+        use_cache_output = has_workflow_cache or _is_workflow_cache_path(
+            output_base
+        )
+
+        if not use_cache_output and not output_base:
+            raise ActionValidationError(
+                "'learn_graph' requires an 'output' directory."
+            )
+
+        total_start = perf_counter()
 
         # Load data once for efficient matrix execution.
+        data_load_start = perf_counter()
         numpy_data, _ = normalise_data(input_path, variable_types)
+        data_load_seconds = perf_counter() - data_load_start
 
         output_dirs: List[str] = []
+        all_objects: List[Dict[str, Any]] = []
+        cache_metadata: Dict[str, Any] = {}
+        algorithm_total_seconds = 0.0
+        output_total_seconds = 0.0
 
-        if sizes is None:
-            # Single run — no sample_size constraint.
-            out_dir = _build_output_dir(output_base, algorithm, variant, None)
+        if use_cache_output:
+            if sizes is None:
+                run_sizes: List[Optional[int]] = [None]
+            else:
+                run_sizes = [sizes[0]]
+        elif sizes is None:
+            run_sizes = [None]
+        else:
+            run_sizes = [n for n in sizes]
+
+        for n in run_sizes:
+            run_start = perf_counter()
+            if use_cache_output:
+                out_dir = ""
+            else:
+                out_dir = _build_output_dir(output_base, algorithm, variant, n)
+
+            algorithm_start = perf_counter()
             result = learn_graph(
                 data=numpy_data,
                 algorithm=algorithm,
-                output=out_dir,
+                output=out_dir if out_dir else None,
                 hyperparameters=hyperparameters,
                 trace=include_trace,
                 variant=variant,
+                sample_size=n,
             )
-            result.save(out_dir)
-            output_dirs.append(out_dir)
-        else:
-            # Matrix run: one learn_graph call per sample_size value.
-            for n in sizes:
-                out_dir = _build_output_dir(output_base, algorithm, variant, n)
-                result = learn_graph(
-                    data=numpy_data,
-                    algorithm=algorithm,
-                    sample_size=n,
-                    output=out_dir,
-                    hyperparameters=hyperparameters,
-                    trace=include_trace,
-                    variant=variant,
+            algorithm_seconds = perf_counter() - algorithm_start
+            algorithm_total_seconds += algorithm_seconds
+
+            output_start = perf_counter()
+
+            action_meta = _build_action_metadata(
+                input_path=input_path,
+                algorithm=algorithm,
+                variant=variant,
+                sample_size=n,
+                result_metadata=result.metadata,
+                graph_num_nodes=len(result.graph.nodes),
+                graph_num_edges=len(result.graph.edges),
+                include_trace=include_trace,
+                elapsed_seconds=0.0,
+                algorithm_seconds=round(algorithm_seconds, 6),
+                output_seconds=0.0,
+            )
+
+            if use_cache_output:
+                graph_buf = StringIO()
+                graphml.write(result.graph, graph_buf)
+                all_objects.append(
+                    {
+                        "type": "dag",
+                        "format": "graphml",
+                        "action": "learn_graph",
+                        "content": graph_buf.getvalue(),
+                    }
                 )
+                if result.trace is not None:
+                    all_objects.append(
+                        {
+                            "type": "trace",
+                            "format": "json",
+                            "action": "learn_graph",
+                            "content": json.dumps(result.trace, indent=2),
+                        }
+                    )
+                output_seconds = perf_counter() - output_start
+                run_elapsed = perf_counter() - run_start
+                output_total_seconds += output_seconds
+                action_meta["output_seconds"] = round(output_seconds, 6)
+                action_meta["elapsed_seconds"] = round(run_elapsed, 6)
+                cache_metadata = action_meta
+            else:
                 result.save(out_dir)
+                output_seconds = perf_counter() - output_start
+                run_elapsed = perf_counter() - run_start
+                output_total_seconds += output_seconds
+                action_meta["output_seconds"] = round(output_seconds, 6)
+                action_meta["elapsed_seconds"] = round(run_elapsed, 6)
+                _write_meta_json(
+                    out_dir,
+                    algorithm=algorithm,
+                    variant=variant,
+                    sample_size=n,
+                    metadata=action_meta,
+                    include_trace=include_trace,
+                )
                 output_dirs.append(out_dir)
 
+        metadata: Dict[str, Any] = {
+            "num_runs": len(run_sizes),
+            "algorithm": algorithm,
+            "variant": variant,
+            "status": "success",
+            "elapsed_seconds": round(perf_counter() - total_start, 6),
+            "data_load_seconds": round(data_load_seconds, 6),
+            "algorithm_total_seconds": round(algorithm_total_seconds, 6),
+            "output_total_seconds": round(output_total_seconds, 6),
+        }
+        if use_cache_output:
+            metadata.update(cache_metadata)
+            return ("success", metadata, all_objects)
+
+        metadata["outputs"] = output_dirs
         return (
             "success",
-            {
-                "num_runs": len(output_dirs),
-                "algorithm": algorithm,
-                "variant": variant,
-                "status": "success",
-                "outputs": output_dirs,
-            },
+            metadata,
             [],
         )
 
