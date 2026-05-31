@@ -58,6 +58,8 @@ def test_build_trace_init_step_has_null_arc_change():
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
     assert steps[0]["arc_change"] is None
+    assert steps[0]["operation"] == "init"
+    assert steps[0]["alternative_operation"] is None
     assert steps[0]["score_increase"] == -10.0
 
 
@@ -69,10 +71,12 @@ def test_build_trace_stop_step_has_null_arc_change():
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
     assert steps[0]["arc_change"] is None
+    assert steps[0]["operation"] == "stop"
+    assert steps[0]["alternative_operation"] is None
     assert steps[0]["score_increase"] == -8.0
 
 
-# build_trace formats add arc as tail→head.
+# build_trace formats add arc as [tail, head] list.
 def test_build_trace_add_arc_format():
     t = _trace_with(
         {
@@ -84,10 +88,11 @@ def test_build_trace_add_arc_format():
     )
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
-    assert steps[0]["arc_change"] == "A\u2192B"
+    assert steps[0]["arc_change"] == ["A", "B"]
+    assert steps[0]["operation"] == "add"
 
 
-# build_trace formats delete arc as tail↛head.
+# build_trace formats delete arc as [tail, head] list.
 def test_build_trace_delete_arc_format():
     t = _trace_with(
         {
@@ -99,10 +104,11 @@ def test_build_trace_delete_arc_format():
     )
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
-    assert steps[0]["arc_change"] == "A\u219bB"
+    assert steps[0]["arc_change"] == ["A", "B"]
+    assert steps[0]["operation"] == "delete"
 
 
-# build_trace formats reverse arc as tail⇄head.
+# build_trace formats reverse arc as [tail, head] list.
 def test_build_trace_reverse_arc_format():
     t = _trace_with(
         {
@@ -114,7 +120,8 @@ def test_build_trace_reverse_arc_format():
     )
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
-    assert steps[0]["arc_change"] == "A\u21c4B"
+    assert steps[0]["arc_change"] == ["A", "B"]
+    assert steps[0]["operation"] == "reverse"
 
 
 # build_trace includes alternative fields when arc_2 and activity_2 present.
@@ -132,7 +139,8 @@ def test_build_trace_alternative_fields_when_present():
     )
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
-    assert steps[0]["alternative_arc_change"] == "C\u2192D"
+    assert steps[0]["alternative_operation"] == "add"
+    assert steps[0]["alternative_arc_change"] == ["C", "D"]
     assert steps[0]["alternative_score_increase"] == 1.2
 
 
@@ -148,6 +156,7 @@ def test_build_trace_no_alternative_when_arc_2_none():
     )
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
+    assert steps[0]["alternative_operation"] is None
     assert "alternative_arc_change" not in steps[0]
     assert "alternative_score_increase" not in steps[0]
 
@@ -165,6 +174,7 @@ def test_build_trace_no_alternative_when_activity_2_none():
     )
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
+    assert steps[0]["alternative_operation"] is None
     assert "alternative_arc_change" not in steps[0]
 
 

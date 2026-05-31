@@ -98,8 +98,11 @@ def test_h2pc_trace_returns_step_list() -> None:
     )
     assert isinstance(result.trace, list)
     assert len(result.trace) > 0
-    step = result.trace[0]
+    assert result.trace[0]["arc_change"] is None
+    assert result.trace[-1]["arc_change"] is None
+    step = result.trace[1]
     assert "arc_change" in step
+    assert "operation" in step
     assert "score_increase" in step
     assert "time" in step
 

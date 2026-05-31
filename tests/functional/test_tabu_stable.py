@@ -170,7 +170,7 @@ def test_tabu_stable_trace_last_step_is_stop(asia_data) -> None:
     assert result.trace[-1]["arc_change"] is None
 
 
-# arc_change strings for add steps use the → symbol.
+# arc_change for non-boundary steps is a [from, to] list.
 def test_tabu_stable_trace_add_steps_use_arrow(asia_data) -> None:
     result = learn_graph(
         asia_data, algorithm="tabu-stable", seed=1, trace=True
@@ -179,6 +179,6 @@ def test_tabu_stable_trace_add_steps_use_arrow(asia_data) -> None:
     add_steps = [
         s
         for s in result.trace
-        if s["arc_change"] is not None and "\u2192" in s["arc_change"]
+        if s["arc_change"] is not None and isinstance(s["arc_change"], list)
     ]
     assert len(add_steps) > 0

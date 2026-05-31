@@ -50,11 +50,11 @@ _SCORE_VALUE_MAP: Dict[str, str] = {
     "bdeu": "bde",
 }
 
-# Arc-change symbols used in the score_steps trace format.
-_ARC_SYMBOLS: Dict[str, str] = {
-    "adding": "\u2192",  # →
-    "removing": "\u219b",  # ↛
-    "reversing": "\u21c4",  # ⇄
+# Map bnlearn action strings to common trace operation names.
+_OPERATIONS: Dict[str, str] = {
+    "adding": "add",
+    "removing": "delete",
+    "reversing": "reverse",
 }
 
 # Params for the hill-climbing (maximise) phase of hybrid algorithms.
@@ -268,7 +268,7 @@ class BnlearnAdapter(PackageAdapter):
             or ``None`` for constraint-based algorithms.  Each dict
             contains:
             ``time``: ``None`` — bnlearn provides no per-step timing.
-            ``arc_change``: Arc changed, e.g. ``"A→B"``.
+            ``arc_change``: Arc changed as ``[from, to]`` list.
             ``score_increase``: Score delta for the chosen change.
         """
         algorithm: str = raw_output["algorithm"]
@@ -419,7 +419,9 @@ def _parse_hc_trace(debug_text: str) -> List[Dict[str, Any]]:
 
     Extracts arc changes and their score deltas from the verbose
     output produced when ``debug=TRUE`` is passed to ``hc()`` or
-    ``tabu()``.  Each completed iteration produces one step dict.
+    ``tabu()``.  Each completed iteration produces one step dict,
+    wrapped with synthetic ``init`` and ``stop`` records built from
+    bnlearn's current-score lines.
 
     Args:
         debug_text: Stdout captured before the arcs sentinel.
@@ -427,12 +429,15 @@ def _parse_hc_trace(debug_text: str) -> List[Dict[str, Any]]:
     Returns:
         List of step dicts, each with keys:
         ``time``: Always ``None`` — bnlearn has no per-step timing.
-        ``arc_change``: Arc-change string, e.g. ``"A→B"``.
+        ``arc_change``: Arc-change as ``[from, to]`` list.
         ``score_increase``: Score delta for the chosen operation.
     """
     best_pat = re.compile(
         r"^\* best operation was: "
         r"(adding|removing|reversing)\s+(\S+)\s+->\s+(\S+)\s*\.$"
+    )
+    current_pat = re.compile(
+        r"^\* current score: " r"([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s*$"
     )
     delta_pat = re.compile(
         r"^\s+> delta between scores for nodes (\S+) (\S+) is "
@@ -445,8 +450,14 @@ def _parse_hc_trace(debug_text: str) -> List[Dict[str, Any]]:
     steps: List[Dict[str, Any]] = []
     deltas: Dict[Tuple[str, str, str], float] = {}
     last_delta: Optional[Tuple[str, str, float]] = None
+    current_scores: List[float] = []
 
     for line in debug_text.splitlines():
+        current_m = current_pat.match(line)
+        if current_m:
+            current_scores.append(float(current_m.group(1)))
+            continue
+
         delta_m = delta_pat.match(line)
         if delta_m:
             last_delta = (
@@ -468,16 +479,36 @@ def _parse_hc_trace(debug_text: str) -> List[Dict[str, Any]]:
         if best_m:
             action = best_m.group(1)
             n1, n2 = best_m.group(2), best_m.group(3)
-            symbol = _ARC_SYMBOLS.get(action, "\u2192")
             delta = deltas.get((action, n1, n2), 0.0)
             steps.append(
                 {
                     "time": None,
-                    "arc_change": f"{n1}{symbol}{n2}",
+                    "arc_change": [n1, n2],
+                    "operation": _OPERATIONS.get(action, action),
+                    "alternative_operation": None,
                     "score_increase": round(delta, 6),
                 }
             )
             deltas = {}
             last_delta = None
 
-    return steps
+    if not current_scores:
+        return steps
+
+    return [
+        {
+            "time": None,
+            "arc_change": None,
+            "operation": "init",
+            "alternative_operation": None,
+            "score_increase": round(current_scores[0], 6),
+        },
+        *steps,
+        {
+            "time": None,
+            "arc_change": None,
+            "operation": "stop",
+            "alternative_operation": None,
+            "score_increase": round(current_scores[-1], 6),
+        },
+    ]

@@ -16,13 +16,6 @@ _CONTINUOUS_SCORE_MAP: Dict[str, str] = {
     "bic": "bic-g",
 }
 
-# Arc-change symbols for the score_steps trace format.
-_ARC_SYMBOLS: Dict[str, str] = {
-    "add": "\u2192",  # →
-    "delete": "\u219b",  # ↛
-    "reverse": "\u21c4",  # ⇄
-}
-
 
 class CausalIQHCAdapter(PackageAdapter):
     """PackageAdapter wrapping the CausalIQ hc() algorithm.
@@ -147,28 +140,18 @@ class CausalIQHCAdapter(PackageAdapter):
         steps = []
         for i, activity in enumerate(t["activity"]):
             arc = t["arc"][i]
-            arc_change = (
-                None
-                if arc is None
-                else (
-                    f"{arc[0]}"
-                    f"{_ARC_SYMBOLS.get(activity, chr(0x2192))}"
-                    f"{arc[1]}"
-                )
-            )
+            arc_change = None if arc is None else list(arc)
+            act2 = t["activity_2"][i]
             step: Dict[str, Any] = {
                 "time": round(t["time"][i], 2),
                 "arc_change": arc_change,
+                "operation": activity,
+                "alternative_operation": act2,
                 "score_increase": round(t["delta/score"][i], 6),
             }
             arc2 = t["arc_2"][i]
-            act2 = t["activity_2"][i]
             if arc2 is not None and act2 is not None:
-                step["alternative_arc_change"] = (
-                    f"{arc2[0]}"
-                    f"{_ARC_SYMBOLS.get(act2, chr(0x2192))}"
-                    f"{arc2[1]}"
-                )
+                step["alternative_arc_change"] = list(arc2)
                 step["alternative_score_increase"] = round(t["delta_2"][i], 6)
             steps.append(step)
 

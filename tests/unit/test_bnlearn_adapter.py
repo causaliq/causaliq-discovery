@@ -611,16 +611,22 @@ _SAMPLE_DEBUG = """\
 # _parse_hc_trace returns one step per best-operation line.
 def test_parse_hc_trace_step_count() -> None:
     steps = _parse_hc_trace(_SAMPLE_DEBUG)
-    assert len(steps) == 2
+    assert len(steps) == 4
+    assert steps[0]["arc_change"] is None
+    assert steps[0]["operation"] == "init"
+    assert steps[0]["alternative_operation"] is None
+    assert steps[-1]["operation"] == "stop"
+    assert steps[-1]["arc_change"] is None
 
 
-# _parse_hc_trace parses adding operation with arrow symbol.
+# _parse_hc_trace parses adding operation as [from, to] list.
 def test_parse_hc_trace_adding_uses_arrow_symbol() -> None:
     steps = _parse_hc_trace(_SAMPLE_DEBUG)
-    assert steps[0]["arc_change"] == "A\u2192B"
+    assert steps[1]["arc_change"] == ["A", "B"]
+    assert steps[1]["operation"] == "add"
 
 
-# _parse_hc_trace parses removing operation with not-arrow symbol.
+# _parse_hc_trace parses removing operation as [from, to] list.
 def test_parse_hc_trace_removing_uses_not_arrow_symbol() -> None:
     debug = """\
 * current score: -10.0
@@ -629,19 +635,28 @@ def test_parse_hc_trace_removing_uses_not_arrow_symbol() -> None:
 * best operation was: removing X -> Y.
 """
     steps = _parse_hc_trace(debug)
-    assert steps[0]["arc_change"] == "X\u219bY"
+    assert steps[1]["arc_change"] == ["X", "Y"]
+    assert steps[1]["operation"] == "delete"
 
 
-# _parse_hc_trace parses reversing operation with bidirectional symbol.
+# _parse_hc_trace parses reversing operation as [from, to] list.
 def test_parse_hc_trace_reversing_uses_bidirectional_symbol() -> None:
     steps = _parse_hc_trace(_SAMPLE_DEBUG)
-    assert steps[1]["arc_change"] == "E\u21c4F"
+    assert steps[2]["arc_change"] == ["E", "F"]
+    assert steps[2]["operation"] == "reverse"
 
 
 # _parse_hc_trace records score delta for chosen operation.
 def test_parse_hc_trace_records_score_increase() -> None:
     steps = _parse_hc_trace(_SAMPLE_DEBUG)
-    assert steps[0]["score_increase"] == pytest.approx(1.234567)
+    assert steps[1]["score_increase"] == pytest.approx(1.234567)
+
+
+# _parse_hc_trace preserves init and stop scores.
+def test_parse_hc_trace_wraps_with_init_and_stop_scores() -> None:
+    steps = _parse_hc_trace(_SAMPLE_DEBUG)
+    assert steps[0]["score_increase"] == pytest.approx(-1234.56789)
+    assert steps[-1]["score_increase"] == pytest.approx(-1232.790113)
 
 
 # _parse_hc_trace sets time to None for all steps.

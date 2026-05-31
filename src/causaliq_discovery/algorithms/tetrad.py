@@ -19,8 +19,10 @@ from typing import (
 from uuid import uuid4
 
 import pandas as pd
-from causaliq_core.graph import DAG, PDAG, SDG
+from causaliq_core.graph import DAG, PDAG, SDG, extend_pdag
 from causaliq_data import Data
+from causaliq_data.pandas import Pandas
+from causaliq_data.score import SCORE_PARAMS, dag_score
 
 from causaliq_discovery.adapter import PackageAdapter
 from causaliq_discovery.variable_type import VariableType
@@ -38,6 +40,8 @@ class TetradRunOutput(TypedDict):
     graph: SDG
     elapsed_seconds: Optional[float]
     stdout: str
+    init_score: Optional[float]
+    final_score: Optional[float]
 
 
 class TetradAdapter(PackageAdapter):
@@ -102,8 +106,6 @@ class TetradAdapter(PackageAdapter):
             ValueError: If unsupported algorithm or parameter values.
             RuntimeError: If output file cannot be parsed.
         """
-        del trace
-
         if algorithm != "fges":
             raise ValueError(
                 f"TetradAdapter currently supports 'fges' only; "
@@ -146,10 +148,26 @@ class TetradAdapter(PackageAdapter):
             out_path = _resolve_output_file(tmpdir, prefix)
             graph, elapsed = _parse_output(out_path, nodes)
 
+        init_score: Optional[float] = None
+        final_score: Optional[float] = None
+        if trace:
+            score_name = _score_name(dstype, params.get("score", "bic"))
+            init_score, final_score = _graph_scores(
+                frame=frame,
+                nodes=nodes,
+                score_name=score_name,
+                score_params={
+                    k: v for k, v in params.items() if k in SCORE_PARAMS
+                },
+                learnt_graph=graph,
+            )
+
         return {
             "graph": graph,
             "elapsed_seconds": elapsed,
             "stdout": stdout,
+            "init_score": init_score,
+            "final_score": final_score,
         }
 
     def convert_output(self, raw_output: TetradRunOutput) -> SDG:
@@ -159,9 +177,76 @@ class TetradAdapter(PackageAdapter):
     def build_trace(
         self, raw_output: TetradRunOutput
     ) -> Optional[List[Dict[str, Any]]]:
-        """Return None until Tetrad step trace parsing is implemented."""
-        del raw_output
-        return None
+        """Build a minimal trace with init and stop records.
+
+        Tetrad does not expose step-by-step arc operations in causal-cmd
+        output, so this adapter emits a two-row trace containing start
+        score and final score with elapsed time.
+        """
+        elapsed = raw_output["elapsed_seconds"]
+        init_score = raw_output["init_score"]
+        final_score = raw_output["final_score"]
+
+        return [
+            {
+                "time": 0.0,
+                "arc_change": None,
+                "operation": "init",
+                "alternative_operation": None,
+                "score_increase": (
+                    None if init_score is None else round(init_score, 6)
+                ),
+            },
+            {
+                "time": (None if elapsed is None else round(elapsed, 2)),
+                "arc_change": None,
+                "operation": "stop",
+                "alternative_operation": None,
+                "score_increase": (
+                    None if final_score is None else round(final_score, 6)
+                ),
+            },
+        ]
+
+
+def _score_name(dstype: str, score_name: str) -> str:
+    """Normalise score names for score evaluation helpers."""
+    if dstype == "continuous" and score_name == "bic":
+        return "bic-g"
+    if score_name == "bdeu":
+        return "bde"
+    return score_name
+
+
+def _graph_scores(
+    frame: pd.DataFrame,
+    nodes: List[str],
+    score_name: str,
+    score_params: Dict[str, Any],
+    learnt_graph: SDG,
+) -> Tuple[Optional[float], Optional[float]]:
+    """Compute initial-empty and learnt-graph scores for Tetrad trace."""
+    params = score_params.copy()
+    params.update({"unistate_ok": True})
+
+    data = Pandas(df=frame)
+    initial = DAG(nodes, [])
+    init_df = dag_score(initial, data, score_name, params)
+    init_score = float(init_df[score_name].sum())
+
+    graph_for_score: DAG
+    try:
+        graph_for_score = (
+            learnt_graph
+            if isinstance(learnt_graph, DAG)
+            else extend_pdag(cast(PDAG, learnt_graph))
+        )
+        final_df = dag_score(graph_for_score, data, score_name, params)
+        final_score = float(final_df[score_name].sum())
+    except ValueError:
+        final_score = 0.0
+
+    return init_score, final_score
 
 
 def _resolve_causal_cmd_jar() -> str:

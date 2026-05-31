@@ -13,10 +13,12 @@ from causaliq_discovery.algorithms.tetrad import (
     TetradAdapter,
     _build_fges_params,
     _edge_from_match,
+    _graph_scores,
     _parse_output,
     _resolve_causal_cmd_jar,
     _resolve_output_file,
     _run_java_jar,
+    _score_name,
 )
 
 
@@ -302,6 +304,121 @@ def test_run_executes_java_and_parses_output(
     assert isinstance(adapter.convert_output(raw), DAG)
     assert raw["elapsed_seconds"] == 1.0
     assert raw["stdout"] == "ok"
+    assert raw["init_score"] is None
+    assert raw["final_score"] is None
+
+
+# run with trace=True includes init/final scores for minimal trace.
+def test_run_with_trace_populates_scores(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    jar = tmp_path / "causal-cmd-1.3.0.jar"
+    jar.write_text("dummy", encoding="utf-8")
+    monkeypatch.setenv("CQ_JAVA_DIR", str(tmp_path))
+
+    def fake_run_java_jar(
+        _jar_path: str,
+        args: List[str],
+        timeout: int,
+    ) -> str:
+        del timeout
+        out_dir = Path(args[args.index("--out") + 1])
+        prefix = args[args.index("--prefix") + 1]
+        out_file = out_dir / f"{prefix}.txt"
+        out_file.write_text(
+            "Start search: Tue, January 01, 2025 10:00:00 AM\n"
+            "Graph Edges:\n"
+            "1. A --> B\n"
+            "\n"
+            "End search: Tue, January 01, 2025 10:00:01 AM\n",
+            encoding="utf-8",
+        )
+        return "ok"
+
+    monkeypatch.setattr(
+        "causaliq_discovery.algorithms.tetrad._run_java_jar",
+        fake_run_java_jar,
+    )
+
+    class _DataLike:
+        def __init__(self) -> None:
+            self.dstype = "categorical"
+
+        def as_df(self) -> pd.DataFrame:
+            return pd.DataFrame(
+                {
+                    "A": ["x", "y", "x", "y", "x", "y"],
+                    "B": ["u", "u", "v", "v", "u", "v"],
+                },
+                dtype="category",
+            )
+
+    adapter = TetradAdapter()
+    converted = adapter.convert_input(
+        _DataLike(),
+        None,
+        None,
+        None,
+        None,
+    )
+    raw = adapter.run(
+        converted_data=converted,
+        algorithm="fges",
+        mapped_hyperparameters={"score": "bic"},
+        trace=True,
+    )
+
+    assert isinstance(raw["init_score"], float)
+    assert isinstance(raw["final_score"], float)
+
+
+# score_name maps bdeu to bde for scoring helpers.
+def test_score_name_maps_bdeu_to_bde() -> None:
+    assert _score_name("categorical", "bdeu") == "bde"
+
+
+# score_name maps continuous bic to bic-g for scoring helpers.
+def test_score_name_maps_continuous_bic_to_bic_g() -> None:
+    assert _score_name("continuous", "bic") == "bic-g"
+
+
+# score_name passthrough keeps non-mapped values unchanged.
+def test_score_name_passthrough() -> None:
+    assert _score_name("categorical", "bic") == "bic"
+
+
+# graph_scores returns 0.0 final score when PDAG extension fails.
+def test_graph_scores_returns_zero_when_extend_pdag_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frame = pd.DataFrame(
+        {
+            "A": ["x", "y", "x", "y", "x", "y"],
+            "B": ["u", "u", "v", "v", "u", "v"],
+        },
+        dtype="category",
+    )
+    learnt = PDAG(["A", "B"], [("A", "-", "B")])
+
+    def _raise(_graph: PDAG) -> DAG:
+        raise ValueError("cannot extend")
+
+    monkeypatch.setattr(
+        "causaliq_discovery.algorithms.tetrad.extend_pdag",
+        _raise,
+    )
+
+    init_score, final_score = _graph_scores(
+        frame=frame,
+        nodes=["A", "B"],
+        score_name="bic",
+        score_params={"k": 1},
+        learnt_graph=learnt,
+    )
+
+    assert isinstance(init_score, float)
+    assert final_score == 0.0
 
 
 # run rejects algorithms other than fges.
@@ -317,16 +434,30 @@ def test_run_rejects_non_fges_algorithm() -> None:
         adapter.run(converted, algorithm="pc", mapped_hyperparameters={})
 
 
-# build_trace currently returns None.
-def test_build_trace_returns_none() -> None:
+# build_trace returns init/stop records for Tetrad.
+def test_build_trace_returns_minimal_init_stop_steps() -> None:
     adapter = TetradAdapter()
     raw = {
         "graph": DAG(["A", "B"], [("A", "->", "B")]),
         "elapsed_seconds": 1.0,
         "stdout": "ok",
+        "init_score": -10.0,
+        "final_score": -8.0,
     }
 
-    assert adapter.build_trace(raw) is None
+    trace = adapter.build_trace(raw)
+    assert trace is not None
+    assert len(trace) == 2
+    assert trace[0]["operation"] == "init"
+    assert trace[0]["arc_change"] is None
+    assert trace[0]["alternative_operation"] is None
+    assert trace[0]["time"] == 0.0
+    assert trace[0]["score_increase"] == -10.0
+    assert trace[1]["operation"] == "stop"
+    assert trace[1]["arc_change"] is None
+    assert trace[1]["alternative_operation"] is None
+    assert trace[1]["time"] == 1.0
+    assert trace[1]["score_increase"] == -8.0
 
 
 # parse_output raises when a graph edge line is malformed.
