@@ -77,7 +77,9 @@ function Install-InEnvironment {
         try {
             # Install the package with dependencies
             Write-Host "  Installing causaliq-discovery with dev dependencies..." -ForegroundColor Gray
-            & $PythonExe -m pip install --force-reinstall -e ".[dev,test,docs]"
+            & $PythonExe -m pip install --force-reinstall `
+                --extra-index-url https://test.pypi.org/simple/ `
+                -e ".[dev,test,docs]"
         }
         finally {
             $env:PYTHONPATH = $savedPythonPath
