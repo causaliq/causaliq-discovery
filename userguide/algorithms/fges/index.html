@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../mmhc/">
+        <link rel="prev" href="../">
       
       
-        <link rel="next" href="../tabu/">
+        <link rel="next" href="../gs/">
       
       
         
@@ -23,7 +23,7 @@
     
     
       
-        <title>pc-stable - causaliq-discovery</title>
+        <title>fges - causaliq-discovery</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#pc-stable-algorithm" class="md-skip">
+        <a href="#fges-algorithm" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              pc-stable
+              fges
             
           </span>
         </div>
@@ -592,10 +592,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../fges/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    fges
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -611,6 +638,72 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hyperparameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hyperparameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#variants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variants
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -788,37 +881,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    pc-stable
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../pc-stable/" class="md-nav__link">
         
   
   
@@ -834,72 +900,6 @@
   
 
       </a>
-      
-        
-
-  
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reference
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#hyperparameters" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Hyperparameters
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#variants" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Variants
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1466,26 +1466,25 @@
 
 
 
-<h1 id="pc-stable-algorithm">PC-STABLE Algorithm<a class="headerlink" href="#pc-stable-algorithm" title="Permanent link">&para;</a></h1>
+<h1 id="fges-algorithm">FGES Algorithm<a class="headerlink" href="#fges-algorithm" title="Permanent link">&para;</a></h1>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>PC-Stable is a constraint-based structure learning algorithm that recovers the
-skeleton of a Bayesian network and then orients as many edges as possible
-using v-structure (collider) detection and orientation propagation rules. It
-operates by testing pairs of variables for conditional independence, removing
-edges whose endpoints are d-separated by some conditioning set, and recording
-the separating sets for later orientation. The output is a Partially Directed
-Acyclic Graph (PDAG) rather than a fully oriented DAG, because constraint-based
-methods can only orient edges that are uniquely determined by the data.</p>
-<p>The <em>stable</em> variant (Colombo &amp; Maathuis, 2014) fixes an order-dependence
-problem in the original PC algorithm: the skeleton and v-structures it finds
-are the same regardless of the order in which variables are presented. This
-makes PC-Stable a reliable baseline for constraint-based learning.</p>
-<p><strong>Class:</strong> constraint · PDAG
-<strong>Package:</strong> bnlearn</p>
+<p>Fast Greedy Equivalence Search (FGES) is a score-based algorithm that
+searches over Markov equivalence classes rather than individual DAGs.
+It uses greedy edge additions and removals to optimise a chosen score
+(such as BIC), which makes it practical for larger variable sets where
+exhaustive search is infeasible.</p>
+<p>In causaliq-discovery, FGES is currently provided via the Tetrad
+<code>causal-cmd</code> backend and returns a PDAG representing an equivalence
+class of candidate causal structures. FGES is often a strong baseline
+for high-dimensional settings, but like other greedy methods it can
+still depend on score choice and data quality.</p>
+<p><strong>Class:</strong> score · PDAG
+<strong>Package:</strong> Tetrad/causal-cmd</p>
 <h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
-<p>Colombo D. &amp; Maathuis M.H. (2014) – Order-Independent Constraint-Based Causal
-Structure Learning. J. Mach. Learn. Res. 15, 3741–3782.
-<a href="https://jmlr.org/papers/v15/colombo14a.html">https://jmlr.org/papers/v15/colombo14a.html</a></p>
+<p>Ramsey J. et al. (2017) – A million variables and more: the Fast Greedy
+Equivalence Search algorithm for learning high-dimensional graphical causal
+models. Int. J. Data Sci. Anal. 3, 121–129.
+<a href="https://doi.org/10.1007/s41060-016-0032-z">https://doi.org/10.1007/s41060-016-0032-z</a></p>
 <h2 id="hyperparameters">Hyperparameters<a class="headerlink" href="#hyperparameters" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1499,18 +1498,11 @@ Structure Learning. J. Mach. Learn. Res. 15, 3741–3782.
 </thead>
 <tbody>
 <tr>
-<td><a href="../../hyperparameters/#alpha"><code>alpha</code></a></td>
+<td><a href="../../hyperparameters/#iss"><code>iss</code></a></td>
 <td>float</td>
-<td>0.05</td>
+<td>1.0</td>
 <td>—</td>
-<td>p-value threshold below which a CI test indicates conditional independence.</td>
-</tr>
-<tr>
-<td><a href="../../hyperparameters/#ci_test"><code>ci_test</code></a></td>
-<td>str</td>
-<td>mi</td>
-<td><code>mi</code>, <code>x2</code></td>
-<td>Conditional independence test used in constraint-based learning.</td>
+<td>Imaginary Sample Size weighting the prior in Bayesian scores.</td>
 </tr>
 <tr>
 <td><a href="../../hyperparameters/#max_elapsed"><code>max_elapsed</code></a></td>
@@ -1518,6 +1510,20 @@ Structure Learning. J. Mach. Learn. Res. 15, 3741–3782.
 <td>No limit</td>
 <td>—</td>
 <td>Maximum allowed execution time in seconds.</td>
+</tr>
+<tr>
+<td><a href="../../hyperparameters/#penalty_weight"><code>penalty_weight</code></a></td>
+<td>float</td>
+<td>1.0</td>
+<td>—</td>
+<td>Weight of the penalty component in AIC and BIC scores.</td>
+</tr>
+<tr>
+<td><a href="../../hyperparameters/#score"><code>score</code></a></td>
+<td>str</td>
+<td>bic</td>
+<td><code>aic</code>, <code>bdeu</code>, <code>bge</code>, <code>bic</code>, <code>k2</code>, <code>loglik</code></td>
+<td>Scoring function for score-based learning.</td>
 </tr>
 </tbody>
 </table>
@@ -1531,8 +1537,8 @@ Structure Learning. J. Mach. Learn. Res. 15, 3741–3782.
 </thead>
 <tbody>
 <tr>
-<td>bnlearn</td>
-<td>bnlearn</td>
+<td>tetrad</td>
+<td>Tetrad/causal-cmd</td>
 </tr>
 </tbody>
 </table>
@@ -1573,7 +1579,7 @@ Structure Learning. J. Mach. Learn. Res. 15, 3741–3782.
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../mmhc/" class="md-footer__link md-footer__link--prev" aria-label="Previous: mmhc">
+          <a href="../" class="md-footer__link md-footer__link--prev" aria-label="Previous: Supported Algorithms">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1583,20 +1589,20 @@ Structure Learning. J. Mach. Learn. Res. 15, 3741–3782.
                 Previous
               </span>
               <div class="md-ellipsis">
-                mmhc
+                Supported Algorithms
               </div>
             </div>
           </a>
         
         
           
-          <a href="../tabu/" class="md-footer__link md-footer__link--next" aria-label="Next: tabu">
+          <a href="../gs/" class="md-footer__link md-footer__link--next" aria-label="Next: gs">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                tabu
+                gs
               </div>
             </div>
             <div class="md-footer__button md-icon">
