@@ -103,6 +103,30 @@ CausalIQ workflow action integration.  Subclasses
 the provider is replaced by a stub class and `WORKFLOW_AVAILABLE`
 is set to `False`.
 
+### Error handling
+
+Structure learning failures are handled internally rather than
+throwing exceptions that stop the calling workflow.  Each run records
+its outcome in the `status` field of the `_meta.json` metadata file,
+using the following vocabulary:
+
+- `ok` — structure learning completed successfully.
+- `timeout` — structure learning timed out.
+- `memout` — structure learning ran out of memory.
+- `input_error` — structure learning failed because the input was
+  ill-formed (e.g. columns without unique values).
+- `internal_error` — structure learning failed for any other reason.
+
+The `causaliq_discovery.errors` module defines the `LearningError`
+taxonomy used to report failures with these statuses.  Each
+`PackageAdapter` may override `translate_error()` to map
+package-specific exceptions onto the taxonomy; the default
+implementation classifies common exception types and message
+patterns.  `learn_graph()` converts execution failures into typed
+`LearningError` subclasses, and the workflow action records failed
+runs in `_meta.json` (with an optional `error` explanation) while
+allowing the remaining runs to execute.
+
 ## Data Flow
 
 ```

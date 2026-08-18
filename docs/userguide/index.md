@@ -63,6 +63,23 @@ steps:
         max_iterations: 5
 ```
 
+### Output and error handling
+
+Each workflow-cache entry is exported as a directory containing the
+learnt graph (`graph.graphml`), an optional trace (`trace.json`) and
+a `_meta.json` metadata file with `matrix_values`, `created_at`,
+`metadata` and `objects` root elements.  The
+`metadata.causaliq-discovery.learn_graph` element records the input
+arguments and the run outcome:
+
+- `status` — one of `ok`, `timeout`, `memout`, `input_error` or
+  `internal_error`.
+- `error` — an optional explanation for failed runs.
+
+Structure learning failures are handled internally: a failed run still
+records its `_meta.json` (with the failure `status` and `error`) and
+the remaining runs in a workflow matrix continue to execute.
+
 ## Parameters
 
 The table below gives an overview of the supported parameters - which are supported by

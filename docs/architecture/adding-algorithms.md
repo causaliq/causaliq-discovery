@@ -91,6 +91,12 @@ class MyPkgAdapter(PackageAdapter):
         ...
 ```
 
+Each adapter inherits `translate_error()` from `PackageAdapter`, which
+classifies package exceptions into the standard `LearningError`
+statuses (`input_error`, `timeout`, `memout`, `internal_error`).  Override
+`translate_error()` when the package produces distinctive error
+messages that need their own mapping.
+
 ### 3. Register the adapter
 
 At the bottom of the adapter module (or in `__init__.py`), call:
