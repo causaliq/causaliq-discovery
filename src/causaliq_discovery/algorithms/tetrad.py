@@ -25,6 +25,7 @@ from causaliq_data.pandas import Pandas
 from causaliq_data.score import SCORE_PARAMS, dag_score
 
 from causaliq_discovery.adapter import PackageAdapter
+from causaliq_discovery.errors import LearningError, LearningInputError
 from causaliq_discovery.variable_type import VariableType
 
 _START_SEARCH = "Start search: "
@@ -32,6 +33,13 @@ _END_SEARCH = "End search: "
 _START_EDGES = "Graph Edges:"
 _EDGE_PATTERN = re.compile(r"^\d+\.\s(\S+)\s([\-o<])\-([\-o>])\s(\S+)$")
 _CAUSAL_CMD_JAR_NAME = "causal-cmd-1.3.0.jar"
+
+# Message fragments that indicate ill-formed input in Tetrad output.
+_J_INPUT_PATTERNS = re.compile(
+    r"unknown variable|no such column|illegalargument|"
+    r"could not be parsed|cannot parse",
+    re.IGNORECASE,
+)
 
 
 class TetradRunOutput(TypedDict):
@@ -207,6 +215,25 @@ class TetradAdapter(PackageAdapter):
                 ),
             },
         ]
+
+    def translate_error(self, exc: Exception) -> LearningError:
+        """Translate Tetrad/Java exceptions into LearningError subtypes.
+
+        Recognises Tetrad-specific messages that indicate ill-formed
+        input and falls back to the generic classifier for everything
+        else.
+
+        Args:
+            exc: Exception raised by the Tetrad Java integration.
+
+        Returns:
+            A LearningError instance whose ``status`` attribute
+            carries the failure category.
+        """
+        message = str(exc) or type(exc).__name__
+        if _J_INPUT_PATTERNS.search(message):
+            return LearningInputError(message)
+        return super().translate_error(exc)
 
 
 def _score_name(dstype: str, score_name: str) -> str:

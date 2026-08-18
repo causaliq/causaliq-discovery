@@ -14,6 +14,7 @@ from causaliq_core.r import (
 from causaliq_data import Data
 
 from causaliq_discovery.adapter import PackageAdapter
+from causaliq_discovery.errors import LearningError, LearningInputError
 from causaliq_discovery.variable_type import VariableType
 
 # R variable name assigned to the data.frame.
@@ -71,6 +72,13 @@ _VT_TO_R_TYPE: Dict[VariableType, str] = {
     VariableType.ORDINAL: "DISCRETE",
     VariableType.COUNT: "CONTINUOUS",
 }
+
+# Message fragments that indicate ill-formed input in bnlearn/R.
+_R_INPUT_PATTERNS = re.compile(
+    r"unique|not a factor|must have at least|same length|"
+    r"same number of rows|more than 50 levels",
+    re.IGNORECASE,
+)
 
 
 class BnlearnAdapter(PackageAdapter):
@@ -279,6 +287,25 @@ class BnlearnAdapter(PackageAdapter):
         sentinel_pos = stdout.find(_ARCS_SENTINEL)
         debug_text = stdout[:sentinel_pos] if sentinel_pos >= 0 else stdout
         return _parse_hc_trace(debug_text)
+
+    def translate_error(self, exc: Exception) -> LearningError:
+        """Translate bnlearn/R exceptions into LearningError subtypes.
+
+        Recognises bnlearn-specific messages that indicate ill-formed
+        input (e.g. columns without unique values or factor levels)
+        and falls back to the generic classifier for everything else.
+
+        Args:
+            exc: Exception raised by the bnlearn R integration.
+
+        Returns:
+            A LearningError instance whose ``status`` attribute
+            carries the failure category.
+        """
+        message = str(exc) or type(exc).__name__
+        if _R_INPUT_PATTERNS.search(message):
+            return LearningInputError(message)
+        return super().translate_error(exc)
 
 
 # ---------------------------------------------------------------------------

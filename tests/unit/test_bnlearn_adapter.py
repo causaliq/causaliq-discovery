@@ -1,10 +1,12 @@
 """Unit tests for BnlearnAdapter."""
 
 import math
+import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pytest
+from causaliq_core.r.exceptions import RRuntimeError
 
 from causaliq_discovery.algorithms.bnlearn import (
     BnlearnAdapter,
@@ -13,6 +15,12 @@ from causaliq_discovery.algorithms.bnlearn import (
     _build_simple_call,
     _parse_hc_trace,
     _r_literal,
+)
+from causaliq_discovery.errors import (
+    LearningInputError,
+    LearningInternalError,
+    LearningMemoryError,
+    LearningTimeoutError,
 )
 from causaliq_discovery.variable_type import VariableType
 
@@ -674,3 +682,55 @@ def test_parse_hc_trace_empty_input() -> None:
 def test_parse_hc_trace_ignores_non_matching_lines() -> None:
     steps = _parse_hc_trace("no matching lines here\n")
     assert steps == []
+
+
+# ---------------------------------------------------------------------------
+# translate_error
+# ---------------------------------------------------------------------------
+
+
+# translate_error maps non-unique-column R errors to input.
+def test_translate_error_r_unique_columns_input() -> None:
+    exc = RRuntimeError("columns X, Y do not have unique values")
+    result = BnlearnAdapter().translate_error(exc)
+    assert isinstance(result, LearningInputError)
+
+
+# translate_error maps factor-level R errors to input.
+def test_translate_error_r_factor_levels_input() -> None:
+    exc = RRuntimeError("variable X is not a factor")
+    result = BnlearnAdapter().translate_error(exc)
+    assert isinstance(result, LearningInputError)
+
+
+# translate_error maps R memory errors to memout via generic classifier.
+def test_translate_error_r_memory_error() -> None:
+    exc = RRuntimeError("cannot allocate vector of size 2.0 Gb")
+    result = BnlearnAdapter().translate_error(exc)
+    assert isinstance(result, LearningMemoryError)
+
+
+# translate_error maps subprocess timeouts to timeout.
+def test_translate_error_timeout() -> None:
+    exc = subprocess.TimeoutExpired("Rscript", 60)
+    result = BnlearnAdapter().translate_error(exc)
+    assert isinstance(result, LearningTimeoutError)
+
+
+# translate_error maps ValueError to input via generic classifier.
+def test_translate_error_value_error_input() -> None:
+    result = BnlearnAdapter().translate_error(ValueError("bad input"))
+    assert isinstance(result, LearningInputError)
+
+
+# translate_error maps generic R errors to internal.
+def test_translate_error_generic_r_internal() -> None:
+    exc = RRuntimeError("unknown R crash")
+    result = BnlearnAdapter().translate_error(exc)
+    assert isinstance(result, LearningInternalError)
+
+
+# translate_error maps unknown exceptions to internal.
+def test_translate_error_unknown_internal() -> None:
+    result = BnlearnAdapter().translate_error(RuntimeError("boom"))
+    assert isinstance(result, LearningInternalError)

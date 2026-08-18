@@ -3,6 +3,12 @@
 from typing import Any, Dict, List, Optional
 
 from causaliq_discovery.algorithms.causaliq_hc import CausalIQHCAdapter
+from causaliq_discovery.errors import (
+    LearningInputError,
+    LearningInternalError,
+    LearningMemoryError,
+    LearningTimeoutError,
+)
 
 
 class _MockTrace:
@@ -229,3 +235,35 @@ def test_build_trace_score_rounded_to_6dp():
     steps = CausalIQHCAdapter().build_trace(_make_raw(t))
     assert steps is not None
     assert steps[0]["score_increase"] == round(1.1234567, 6)
+
+
+# ---------------------------------------------------------------------------
+# translate_error (default PackageAdapter implementation)
+# ---------------------------------------------------------------------------
+
+
+# translate_error maps MemoryError to memout via the generic classifier.
+def test_translate_error_memory_error() -> None:
+    result = CausalIQHCAdapter().translate_error(MemoryError("oom"))
+    assert isinstance(result, LearningMemoryError)
+
+
+# translate_error maps ValueError to input via the generic classifier.
+def test_translate_error_value_error_input() -> None:
+    result = CausalIQHCAdapter().translate_error(ValueError("bad data"))
+    assert isinstance(result, LearningInputError)
+
+
+# translate_error maps subprocess timeouts to timeout.
+def test_translate_error_timeout() -> None:
+    import subprocess
+
+    exc = subprocess.TimeoutExpired("hc", 60)
+    result = CausalIQHCAdapter().translate_error(exc)
+    assert isinstance(result, LearningTimeoutError)
+
+
+# translate_error maps unknown exceptions to internal.
+def test_translate_error_unknown_internal() -> None:
+    result = CausalIQHCAdapter().translate_error(RuntimeError("boom"))
+    assert isinstance(result, LearningInternalError)

@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 from causaliq_core.graph import DAG, PDAG
+from causaliq_core.java.exceptions import JavaRuntimeError
 
 from causaliq_discovery.algorithms.tetrad import (
     TetradAdapter,
@@ -19,6 +20,12 @@ from causaliq_discovery.algorithms.tetrad import (
     _resolve_output_file,
     _run_java_jar,
     _score_name,
+)
+from causaliq_discovery.errors import (
+    LearningInputError,
+    LearningInternalError,
+    LearningMemoryError,
+    LearningTimeoutError,
 )
 
 
@@ -516,3 +523,50 @@ def test_parse_datetime_normalises_lowercase_am_pm() -> None:
     parsed = _parse_datetime("Tue, January 01, 2025 10:00:00 pm")
 
     assert parsed == datetime(2025, 1, 1, 10, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# translate_error
+# ---------------------------------------------------------------------------
+
+
+# translate_error maps unknown-variable Java errors to input.
+def test_translate_error_java_unknown_variable_input() -> None:
+    exc = JavaRuntimeError("Unknown variable: Foo")
+    result = TetradAdapter().translate_error(exc)
+    assert isinstance(result, LearningInputError)
+
+
+# translate_error maps Java OOM errors to memout via generic classifier.
+def test_translate_error_java_memory_error() -> None:
+    exc = JavaRuntimeError("java.lang.OutOfMemoryError: Java heap space")
+    result = TetradAdapter().translate_error(exc)
+    assert isinstance(result, LearningMemoryError)
+
+
+# translate_error maps subprocess timeouts to timeout.
+def test_translate_error_timeout() -> None:
+    import subprocess
+
+    exc = subprocess.TimeoutExpired("java", 120)
+    result = TetradAdapter().translate_error(exc)
+    assert isinstance(result, LearningTimeoutError)
+
+
+# translate_error maps ValueError to input via generic classifier.
+def test_translate_error_value_error_input() -> None:
+    result = TetradAdapter().translate_error(ValueError("bad input"))
+    assert isinstance(result, LearningInputError)
+
+
+# translate_error maps generic Java errors to internal.
+def test_translate_error_generic_java_internal() -> None:
+    exc = JavaRuntimeError("java process crashed")
+    result = TetradAdapter().translate_error(exc)
+    assert isinstance(result, LearningInternalError)
+
+
+# translate_error maps unknown exceptions to internal.
+def test_translate_error_unknown_internal() -> None:
+    result = TetradAdapter().translate_error(RuntimeError("boom"))
+    assert isinstance(result, LearningInternalError)

@@ -7,6 +7,7 @@ import pandas as pd
 from causaliq_core.graph import SDG
 from causaliq_data import Data
 
+from causaliq_discovery.errors import LearningError, classify_error
 from causaliq_discovery.variable_type import VariableType
 
 
@@ -97,3 +98,21 @@ class PackageAdapter(ABC):
         Returns:
             Score-steps trace as a list of dicts, or None.
         """
+
+    def translate_error(self, exc: Exception) -> LearningError:
+        """Translate a package exception into a typed LearningError.
+
+        The default implementation classifies common exception types
+        and message patterns (timeout, memory, ill-formed input).
+        Adapters may override this method to map package-specific
+        error messages onto the standard status vocabulary.
+
+        Args:
+            exc: Exception raised by the package during structure
+                learning.
+
+        Returns:
+            A LearningError instance whose ``status`` attribute
+            carries the failure category.
+        """
+        return classify_error(exc)

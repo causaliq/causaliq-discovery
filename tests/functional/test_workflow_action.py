@@ -623,3 +623,302 @@ def test_execute_reraises_action_execution_error(
             None,
         )
     assert exc.value is original
+
+
+# Successful run writes status 'ok' in the learn_graph metadata element.
+def test_single_run_meta_json_has_ok_status(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    _, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+        },
+        mode="run",
+    )
+    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    with open(meta_path) as f:
+        saved = json.load(f)
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["status"] == "ok"
+
+
+# Failed run records status and error in _meta.json and returns error.
+def test_failed_run_writes_meta_json_with_input_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import causaliq_discovery
+    from causaliq_discovery.errors import LearningInputError
+
+    def failing_learn_graph(**kwargs: object) -> object:
+        raise LearningInputError("data had identical column names")
+
+    monkeypatch.setattr(causaliq_discovery, "learn_graph", failing_learn_graph)
+    provider = DiscoveryActionProvider()
+    status, metadata, objects = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+        },
+        mode="run",
+    )
+    assert status == "error"
+    assert objects == []
+    out_dir = Path(metadata["outputs"][0])
+    with open(out_dir / "_meta.json") as f:
+        saved = json.load(f)
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["status"] == "input_error"
+    assert "identical column names" in learn["error"]
+    assert saved["objects"] == {}
+    assert metadata["status"] == "input_error"
+
+
+# Timed-out run records the timeout status in _meta.json.
+def test_failed_run_timeout_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    import causaliq_discovery
+
+    def timing_out_learn_graph(**kwargs: object) -> object:
+        raise subprocess.TimeoutExpired("Rscript", 60)
+
+    monkeypatch.setattr(
+        causaliq_discovery, "learn_graph", timing_out_learn_graph
+    )
+    provider = DiscoveryActionProvider()
+    status, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+        },
+        mode="run",
+    )
+    assert status == "error"
+    out_dir = Path(metadata["outputs"][0])
+    with open(out_dir / "_meta.json") as f:
+        saved = json.load(f)
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["status"] == "timeout"
+    assert "timed out" in learn["error"]
+
+
+# A failing matrix run does not stop the remaining runs.
+def test_matrix_partial_failure_continues(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import causaliq_discovery
+    from causaliq_discovery.errors import LearningInputError
+
+    real_learn_graph = causaliq_discovery.learn_graph
+
+    def flaky_learn_graph(**kwargs: object) -> object:
+        if kwargs.get("sample_size") == 8:
+            raise LearningInputError("sample too small")
+        return real_learn_graph(**kwargs)
+
+    monkeypatch.setattr(causaliq_discovery, "learn_graph", flaky_learn_graph)
+    provider = DiscoveryActionProvider()
+    status, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+            "sample_size": [5, 8],
+        },
+        mode="run",
+    )
+    assert status == "success"
+    assert metadata["num_runs"] == 2
+    assert len(metadata["outputs"]) == 2
+    for out_dir in metadata["outputs"]:
+        with open(Path(out_dir) / "_meta.json") as f:
+            saved = json.load(f)
+        learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+        if "sample_8" in out_dir:
+            assert learn["status"] == "input_error"
+        else:
+            assert learn["status"] == "ok"
+
+
+# Workflow cache output records failure metadata without objects.
+def test_db_output_failure_returns_error_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import causaliq_discovery
+    from causaliq_discovery.errors import LearningInputError
+
+    def failing_learn_graph(**kwargs: object) -> object:
+        raise LearningInputError("duplicate columns")
+
+    monkeypatch.setattr(causaliq_discovery, "learn_graph", failing_learn_graph)
+    provider = DiscoveryActionProvider()
+    status, metadata, objects = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "learn.db"),
+            "sample_size": 5,
+        },
+        mode="run",
+    )
+    assert status == "error"
+    assert objects == []
+    assert metadata["status"] == "input_error"
+    assert "duplicate columns" in metadata["error"]
+
+
+# Failed data loading records failure _meta.json for every run.
+def test_data_load_failure_records_meta_json(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    status, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": str(tmp_path / "missing.csv"),
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "out"),
+            "sample_size": [5, 8],
+        },
+        mode="run",
+    )
+    assert status == "error"
+    assert metadata["status"] == "internal_error"
+    assert len(metadata["outputs"]) == 2
+    for out_dir in metadata["outputs"]:
+        with open(Path(out_dir) / "_meta.json") as f:
+            saved = json.load(f)
+        learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+        assert learn["status"] == "internal_error"
+        assert saved["objects"] == {}
+
+
+# Workflow cache output records a shared data-load failure.
+def test_db_output_data_load_failure(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    status, metadata, objects = provider.run(
+        "learn_graph",
+        {
+            "input": str(tmp_path / "missing.csv"),
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "learn.db"),
+            "sample_size": 5,
+        },
+        mode="run",
+    )
+    assert status == "error"
+    assert objects == []
+    assert metadata["status"] == "internal_error"
+    assert "missing.csv" in metadata["error"]
+
+
+# A single-run data-load failure writes one failure _meta.json.
+def test_single_run_data_load_failure(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    status, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": str(tmp_path / "missing.csv"),
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "out"),
+        },
+        mode="run",
+    )
+    assert status == "error"
+    assert len(metadata["outputs"]) == 1
+    out_dir = Path(metadata["outputs"][0])
+    with open(out_dir / "_meta.json") as f:
+        saved = json.load(f)
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["status"] == "internal_error"
+
+
+# _build_action_metadata includes status and optional error for failure.
+def test_build_action_metadata_status_and_error() -> None:
+    from causaliq_discovery.workflow_action import _build_action_metadata
+
+    meta = _build_action_metadata(
+        input_path="data.csv",
+        algorithm="hc-stable",
+        variant="causaliq",
+        sample_size=100,
+        result_metadata=None,
+        user_hyperparameters={"score": "bic"},
+        graph_num_nodes=0,
+        graph_num_edges=0,
+        include_trace=False,
+        elapsed_seconds=1.0,
+        algorithm_seconds=0.5,
+        output_seconds=0.2,
+        status="timeout",
+        error="timed out",
+    )
+    assert meta["status"] == "timeout"
+    assert meta["error"] == "timed out"
+    assert meta["hyperparameters"]["score"] == "bic"
+    assert meta["variant"] == "causaliq"
+
+
+# _build_action_metadata omits error and resolves from result metadata.
+def test_build_action_metadata_ok_status() -> None:
+    from causaliq_discovery.workflow_action import _build_action_metadata
+
+    meta = _build_action_metadata(
+        input_path="data.csv",
+        algorithm="hc-stable",
+        variant=None,
+        sample_size=100,
+        result_metadata={
+            "variant": "causaliq",
+            "hyperparameters": {"score": "bic"},
+        },
+        user_hyperparameters=None,
+        graph_num_nodes=8,
+        graph_num_edges=6,
+        include_trace=True,
+        elapsed_seconds=1.0,
+        algorithm_seconds=0.5,
+        output_seconds=0.2,
+        status="ok",
+    )
+    assert meta["status"] == "ok"
+    assert "error" not in meta
+    assert meta["variant"] == "causaliq"
+    assert meta["num_nodes"] == 8
+
+
+# _build_action_metadata falls back to user values for unknown algorithms.
+def test_build_action_metadata_unknown_algorithm() -> None:
+    from causaliq_discovery.workflow_action import _build_action_metadata
+
+    meta = _build_action_metadata(
+        input_path="data.csv",
+        algorithm="does-not-exist",
+        variant=None,
+        sample_size=100,
+        result_metadata=None,
+        user_hyperparameters={"score": "bic"},
+        graph_num_nodes=0,
+        graph_num_edges=0,
+        include_trace=False,
+        elapsed_seconds=1.0,
+        algorithm_seconds=0.5,
+        output_seconds=0.2,
+        status="input_error",
+        error="unknown algorithm",
+    )
+    assert meta["variant"] is None
+    assert meta["hyperparameters"] == {"score": "bic"}
+    assert meta["status"] == "input_error"

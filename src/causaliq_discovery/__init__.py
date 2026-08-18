@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
+from causaliq_discovery.errors import LearningError
 from causaliq_discovery.input import apply_sampling, normalise_data
 from causaliq_discovery.params import validate_all
 from causaliq_discovery.registry import AlgorithmRegistry
@@ -78,6 +79,9 @@ def learn_graph(
         ValueError: If any parameter has an invalid value.
         NotImplementedError: If the requested algorithm variant has
             no registered adapter yet.
+        LearningError: If structure learning fails during execution.
+            The ``status`` attribute carries the failure category:
+            ``input_error``, ``timeout``, ``memout`` or ``internal_error``.
     """
     validate_all(
         data=data,
@@ -108,39 +112,42 @@ def learn_graph(
 
     # Retrieve adapter — raises NotImplementedError if not yet added.
     adapter_class = AlgorithmRegistry.get_adapter(algorithm, variant)
-
-    # Normalise data input to NumPy and resolve variable types.
-    numpy_data, resolved_types = normalise_data(data, variable_types)
-    apply_sampling(numpy_data, sample_size, randomise, seed)
-
-    # Build merged hyperparameters: spec defaults overlaid with
-    # any user-supplied values.
-    effective_hp: Dict[str, Any] = {
-        **spec.hyperparameter_defaults,
-        **(hyperparameters or {}),
-    }
-
-    # Translate common names to package-specific names.
-    name_map = spec.hyperparameter_name_map
-    mapped_hp: Dict[str, Any] = {
-        name_map.get(k, k): v for k, v in effective_hp.items()
-    }
-
-    # Run the algorithm via the adapter.
     adapter = adapter_class()
-    converted = adapter.convert_input(
-        numpy_data, resolved_types, sample_size, randomise, seed
-    )
-    raw_output = adapter.run(converted, algorithm, mapped_hp, trace)
-    graph = adapter.convert_output(raw_output)
 
-    metadata: Dict[str, Any] = {
-        "algorithm": algorithm,
-        "variant": spec.variant,
-        "hyperparameters": effective_hp,
-    }
+    try:
+        # Normalise data input to NumPy and resolve variable types.
+        numpy_data, resolved_types = normalise_data(data, variable_types)
+        apply_sampling(numpy_data, sample_size, randomise, seed)
 
-    result_trace = adapter.build_trace(raw_output) if trace else None
+        # Build merged hyperparameters: spec defaults overlaid with
+        # any user-supplied values.
+        effective_hp: Dict[str, Any] = {
+            **spec.hyperparameter_defaults,
+            **(hyperparameters or {}),
+        }
+
+        # Translate common names to package-specific names.
+        name_map = spec.hyperparameter_name_map
+        mapped_hp: Dict[str, Any] = {
+            name_map.get(k, k): v for k, v in effective_hp.items()
+        }
+
+        # Run the algorithm via the adapter.
+        converted = adapter.convert_input(
+            numpy_data, resolved_types, sample_size, randomise, seed
+        )
+        raw_output = adapter.run(converted, algorithm, mapped_hp, trace)
+        graph = adapter.convert_output(raw_output)
+
+        metadata: Dict[str, Any] = {
+            "algorithm": algorithm,
+            "variant": spec.variant,
+            "hyperparameters": effective_hp,
+        }
+
+        result_trace = adapter.build_trace(raw_output) if trace else None
+    except Exception as exc:
+        raise adapter.translate_error(exc) from exc
 
     return DiscoveryResult(graph=graph, metadata=metadata, trace=result_trace)
 
@@ -160,6 +167,7 @@ try:
         "learn_graph",
         "VariableType",
         "AlgorithmRegistry",
+        "LearningError",
         "ActionProvider",
         "DiscoveryActionProvider",
     ]
@@ -173,4 +181,5 @@ except ImportError:
         "learn_graph",
         "VariableType",
         "AlgorithmRegistry",
+        "LearningError",
     ]

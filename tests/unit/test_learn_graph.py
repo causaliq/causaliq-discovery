@@ -1,12 +1,23 @@
 """Unit tests for learn_graph parameter validation."""
 
+import subprocess
+
 import pandas as pd
 import pytest
+from causaliq_core.r.exceptions import RRuntimeError
 
 from causaliq_discovery import (
     DiscoveryResult,
     VariableType,
     learn_graph,
+)
+from causaliq_discovery.algorithms.bnlearn import BnlearnAdapter
+from causaliq_discovery.algorithms.causaliq_hc import CausalIQHCAdapter
+from causaliq_discovery.errors import (
+    LearningInputError,
+    LearningInternalError,
+    LearningMemoryError,
+    LearningTimeoutError,
 )
 from causaliq_discovery.registry import AlgorithmRegistry
 
@@ -289,3 +300,81 @@ def test_learn_graph_returns_discovery_result_with_mock_adapter(df, mocker):
     )
     result = learn_graph(data=df, algorithm="tabu-stable")
     assert isinstance(result, DiscoveryResult)
+
+
+# learn_graph translates adapter ValueError to LearningInputError.
+def test_learn_graph_adapter_value_error_is_input(df, mocker):
+    class RaisingAdapter(CausalIQHCAdapter):
+        def run(self, *args, **kwargs):
+            raise ValueError("bad data")
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=RaisingAdapter
+    )
+    with pytest.raises(LearningInputError):
+        learn_graph(data=df, algorithm="tabu-stable")
+
+
+# learn_graph translates subprocess timeouts to LearningTimeoutError.
+def test_learn_graph_adapter_timeout_is_timeout(df, mocker):
+    class TimingOutAdapter(CausalIQHCAdapter):
+        def run(self, *args, **kwargs):
+            raise subprocess.TimeoutExpired("Rscript", 60)
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=TimingOutAdapter
+    )
+    with pytest.raises(LearningTimeoutError):
+        learn_graph(data=df, algorithm="tabu-stable")
+
+
+# learn_graph translates MemoryError to LearningMemoryError.
+def test_learn_graph_adapter_memory_error_is_memout(df, mocker):
+    class MemoryAdapter(CausalIQHCAdapter):
+        def run(self, *args, **kwargs):
+            raise MemoryError("out of memory")
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=MemoryAdapter
+    )
+    with pytest.raises(LearningMemoryError):
+        learn_graph(data=df, algorithm="tabu-stable")
+
+
+# learn_graph translates unexpected RuntimeError to LearningInternalError.
+def test_learn_graph_adapter_runtime_error_is_internal(df, mocker):
+    class CrashAdapter(CausalIQHCAdapter):
+        def run(self, *args, **kwargs):
+            raise RuntimeError("unexpected crash")
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=CrashAdapter
+    )
+    with pytest.raises(LearningInternalError):
+        learn_graph(data=df, algorithm="tabu-stable")
+
+
+# learn_graph uses the adapter translate_error for R input failures.
+def test_learn_graph_bnlearn_unique_columns_is_input(df, mocker):
+    class RInputAdapter(BnlearnAdapter):
+        def run(self, *args, **kwargs):
+            raise RRuntimeError("columns do not have unique values")
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=RInputAdapter
+    )
+    with pytest.raises(LearningInputError):
+        learn_graph(data=df, algorithm="hc", variant="bnlearn")
+
+
+# learn_graph uses the adapter translate_error for R memory failures.
+def test_learn_graph_bnlearn_memory_failure_is_memout(df, mocker):
+    class RMemoryAdapter(BnlearnAdapter):
+        def run(self, *args, **kwargs):
+            raise RRuntimeError("cannot allocate vector of size 1.5 Gb")
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=RMemoryAdapter
+    )
+    with pytest.raises(LearningMemoryError):
+        learn_graph(data=df, algorithm="hc", variant="bnlearn")
