@@ -1,23 +1,23 @@
-# Handle errors gracefully, categorising them systematically
+# Fix bug where expressions for the trace argument in learn_graph are not evaluated
 
-Update `learn_graph` capability in the `causaliq-discovery` package so that errors in structure learning are handled internally rather than
-throwing an exception which causes the calling code (typically in a causaliq-workflow) to stop. In the event
-of failure the code should produce a `_meta.json' metadata file in the same way it does currently when the
-structure learning completes successfully.
+## Status: DONE (2026-08-19)
 
-As for a successful run, the _meta.json file should contain `matrix_values`, `created_at` and `metadata` root elements,
-and in case of failure the `metadata\causal_discovery\learn_graph` element should contain:
+The `learn_graph` workflow action now respects the `trace` argument when
+it is supplied as an expression string such as:
 
-* **input arguments** as per a successful run, e.g. 'algorithm', 'variant', 'hyperparameters' etc.
-* **status**: with one of the following values:
-  * `ok` - structure learning completed OK (this element should be added for successful runs)
-  * `timeout` - structure learning timed out
-  * `memout` - structure learning ran out of memory
-  * `input_error` - structure learning failed because the input was ill-formed e.g. bnlearn rejects data where some columns do not have unique values
-  * `internal_error` - structure learning failed for some other reason.
-* **error**: can be used to provide additional explanation of failures (e.g. data had identical column names)
+```yaml
+trace: (True if {{sample_size}} == 10000 else False)
+```
 
-Planning phase needs to:
- * ensure `causaliq-workflows` containing the `learn_graph` action can run to completion even if individual structure learning cases fail
- * the solution must work with each of the different structure learning packages currently supported (bnlearn, causaliq_hc and tetrad) - if necssary these could be tackled in different commits
- * the approach must be readily extendable as new packages are added
+Implemented in `src/causaliq_discovery/workflow_action.py`:
+
+- `_resolve_trace_flag` resolves the `trace` parameter to a bool:
+  plain booleans pass through, numeric values coerce with `bool()`,
+  string literals (`"True"` / `"False"`) parse correctly, and
+  expression strings are evaluated safely via
+  `causaliq_core.utils.evaluate_filter` after workflow template
+  substitution, with matrix variables available as names.
+- `validate_parameters` rejects non-bool/int/str `trace` values early.
+
+Tests added in `tests/unit/test_workflow_action.py` and
+`tests/functional/test_workflow_action.py`.

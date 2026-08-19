@@ -498,6 +498,116 @@ def test_single_run_meta_json_includes_trace_object(tmp_path: Path) -> None:
     assert saved["objects"]["trace"]["format"] == "json"
 
 
+# validate_parameters rejects non-bool, non-string trace values.
+def test_validate_invalid_trace_type_raises() -> None:
+    provider = DiscoveryActionProvider()
+    with pytest.raises(ActionValidationError, match="trace"):
+        provider.validate_parameters(
+            "learn_graph",
+            {
+                "input": "data.csv",
+                "algorithm": "hc-stable",
+                "output": "/out",
+                "trace": {"enabled": True},
+            },
+        )
+
+
+# validate_parameters accepts string trace expressions.
+def test_validate_string_trace_expression_ok() -> None:
+    provider = DiscoveryActionProvider()
+    provider.validate_parameters(
+        "learn_graph",
+        {
+            "input": "data.csv",
+            "algorithm": "hc-stable",
+            "output": "/out",
+            "trace": "(True if 10000 == 10000 else False)",
+        },
+    )
+
+
+# Expression trace evaluating False produces no trace object.
+def test_single_run_expression_trace_false(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    _, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+            "trace": "(True if 5000 == 10000 else False)",
+        },
+        mode="run",
+    )
+    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    with open(meta_path) as f:
+        saved = json.load(f)
+    assert "trace" not in saved["objects"]
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["trace"] is False
+
+
+# Expression trace evaluating True produces a trace object.
+def test_single_run_expression_trace_true(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    _, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+            "trace": "(True if 10000 == 10000 else False)",
+        },
+        mode="run",
+    )
+    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    with open(meta_path) as f:
+        saved = json.load(f)
+    assert saved["objects"]["trace"]["format"] == "json"
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["trace"] is True
+
+
+# Quoted string "False" disables trace instead of coercing to True.
+def test_single_run_string_false_trace_disabled(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    _, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+            "trace": "False",
+        },
+        mode="run",
+    )
+    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    with open(meta_path) as f:
+        saved = json.load(f)
+    assert "trace" not in saved["objects"]
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["trace"] is False
+
+
+# Cache output respects an expression trace that evaluates False.
+def test_db_output_expression_trace_false(tmp_path: Path) -> None:
+    provider = DiscoveryActionProvider()
+    status, metadata, objects = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "learn.db"),
+            "trace": "(True if 5000 == 10000 else False)",
+        },
+        mode="run",
+    )
+    assert status == "success"
+    assert not any(o["type"] == "trace" for o in objects)
+    assert metadata["trace"] is False
+
+
 # _build_output_dir with variant and sample_size produces correct path.
 def test_build_output_dir_with_variant_and_n() -> None:
     result = _build_output_dir("/base", "hc-stable", "causaliq", 1000)

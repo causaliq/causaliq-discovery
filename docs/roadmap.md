@@ -25,10 +25,10 @@ knowledge guidance with the following commit sequence:
 1. ✅ Closed-loop equivalence testing
 1. ✅ `learn_graph` workflow action
 1. ✅ Tetrad FGES Java integration and reference testing
-1. ✅ [Handle errors gracefully, categorising them systematically](current_task.md)
-* 📊 Fix so responsive to trace argument [2026-09-19]
-* 📊 Optimise data loading [2026-09-19]
-* 📊 Variable ordering (and, in the future, data randomisation)
+1. ✅ Handle errors gracefully, categorising them systematically
+1. ✅ [Fix so responsive to trace argument expressions](current_task.md) [2026-08-20]
+* 📊 Optimise data loading [2026-08-20]
+* 📊 Variable ordering (and, possibly, data randomisation)
 * 📊 Refactor large modules e.g. `workflow_action`
 ---
 

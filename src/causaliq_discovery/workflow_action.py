@@ -82,6 +82,10 @@ else:
 
 
 from causaliq_core.graph.io import graphml  # noqa: E402
+from causaliq_core.utils import (  # noqa: E402
+    FilterExpressionError,
+    evaluate_filter,
+)
 
 from causaliq_discovery.errors import LearningError  # noqa: E402
 from causaliq_discovery.input import normalise_data  # noqa: E402
@@ -191,6 +195,77 @@ def _parse_sample_sizes(
 def _is_workflow_cache_path(output_path: str) -> bool:
     """Return True when output targets a workflow cache DB file."""
     return output_path.lower().endswith(".db")
+
+
+_UNRESOLVED = object()
+
+
+def _resolve_trace_flag(
+    value: Any,
+    context: Optional[WorkflowContext] = None,
+    default: bool = False,
+) -> bool:
+    """Resolve the trace parameter to a boolean flag.
+
+    Accepts a native bool, a numeric value (coerced with ``bool()``),
+    or a string.  Strings are first parsed as Python literals so
+    ``"True"`` and ``"False"`` resolve correctly, then evaluated as
+    safe expressions via :func:`evaluate_filter`.  This supports
+    workflow expressions such as
+    ``(True if {{sample_size}} == 10000 else False)`` after template
+    substitution, with matrix variables available as names when a
+    workflow context is supplied.
+
+    Args:
+        value: Raw trace parameter value.
+        context: Optional workflow context providing matrix values
+            for expression evaluation.
+        default: Value returned when value is None or empty.
+
+    Returns:
+        Resolved boolean trace flag.
+
+    Raises:
+        ActionValidationError: If value cannot be resolved to a bool.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if not isinstance(value, str):
+        raise ActionValidationError(
+            f"'trace' must be a bool, int, or string expression; "
+            f"got {type(value).__name__}."
+        )
+    expr = value.strip()
+    if not expr:
+        return default
+    try:
+        parsed: Any = ast.literal_eval(expr)
+    except (ValueError, SyntaxError):
+        parsed = _UNRESOLVED
+    if parsed is not _UNRESOLVED:
+        if isinstance(parsed, bool):
+            return parsed
+        if isinstance(parsed, (int, float)):
+            return bool(parsed)
+        raise ActionValidationError(
+            f"'trace' expression {value!r} must evaluate to a "
+            f"bool, got {type(parsed).__name__}."
+        )
+    names: Dict[str, Any] = {}
+    if context is not None:
+        matrix_values = getattr(context, "matrix_values", None)
+        if isinstance(matrix_values, dict):
+            names.update(matrix_values)
+    try:
+        return evaluate_filter(expr, names)
+    except (FilterExpressionError, TypeError) as exc:
+        raise ActionValidationError(
+            f"Invalid 'trace' expression {value!r}: {exc}"
+        ) from exc
 
 
 def _resolve_run_parameters(
@@ -479,7 +554,10 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             name="trace",
             description=(
                 "If True, include a step-by-step execution trace "
-                "in the output directory."
+                "in the output directory. Accepts a boolean "
+                "expression string, e.g. (True if "
+                "{{sample_size}} == 10000 else False), which is "
+                "evaluated with the workflow matrix variables."
             ),
             required=False,
             default=False,
@@ -528,6 +606,14 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     "'learn_graph' requires an 'algorithm' parameter."
                 )
             sizes = _parse_sample_sizes(parameters.get("sample_size"))
+            trace_value = parameters.get("trace")
+            if trace_value is not None and not isinstance(
+                trace_value, (bool, int, str)
+            ):
+                raise ValueError(
+                    "'trace' must be a bool, int, or string "
+                    f"expression; got {type(trace_value).__name__}."
+                )
             output_value = str(parameters.get("output", ""))
             if _is_workflow_cache_path(output_value):
                 if sizes is not None and len(sizes) != 1:
@@ -660,7 +746,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         hyperparameters: Optional[Dict[str, Any]] = parameters.get(
             "hyperparameters"
         )
-        include_trace: bool = bool(parameters.get("trace", False))
+        include_trace = _resolve_trace_flag(
+            parameters.get("trace", False), context=context
+        )
         variable_types = parameters.get("variable_types")
 
         sizes = _parse_sample_sizes(parameters.get("sample_size"))
