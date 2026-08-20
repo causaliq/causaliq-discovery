@@ -87,8 +87,8 @@ from causaliq_core.utils import (  # noqa: E402
     evaluate_filter,
 )
 
+from causaliq_discovery.data_cache import load_cached_data  # noqa: E402
 from causaliq_discovery.errors import LearningError  # noqa: E402
-from causaliq_discovery.input import normalise_data  # noqa: E402
 
 
 def _build_output_dir(
@@ -471,7 +471,11 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     When ``sample_size`` is supplied as a list of values the action
     expands them into individual ``learn_graph`` calls, reading the
     source data once and passing the same in-memory object to each
-    call for efficient execution.
+    call for efficient execution.  Across workflow matrix jobs the
+    source data is cached per input path, so a dataset is read once
+    per run (at the maximum matrix sample size) and reused via
+    ``set_N`` for every combination of sample size, hyperparameters
+    and algorithm.
     """
 
     # Provider metadata
@@ -498,7 +502,8 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             name="input",
             description=(
                 "Path to CSV input data file. The file is read once "
-                "and shared across all matrix calls."
+                "per workflow run (at the maximum matrix sample size) "
+                "and shared across all matrix calls via set_N()."
             ),
             required=True,
             type_hint="str",
@@ -685,7 +690,8 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             action: Must be 'learn_graph'.
             parameters: Validated parameter values.
             mode: Execution mode ('run', 'force', 'compare').
-            context: Workflow context (unused).
+            context: Workflow context providing the complete matrix
+                for cross-job data caching.
             logger: Optional logger for progress reporting.
 
         Returns:
@@ -712,10 +718,11 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     ) -> "ActionResult":
         """Run learn_graph for all sample_size matrix values.
 
-        Reads input data once from disk as a NumPy object, then
-        calls learn_graph for each value in the sample_size list.
-        Each call receives the same in-memory data object and
-        applies its own sample_size truncation internally.
+        Loads input data as a NumPy object via the cross-job data
+        cache (see :mod:`causaliq_discovery.data_cache`), then calls
+        learn_graph for each value in the sample_size list.  Each
+        call receives the same in-memory data object and applies its
+        own sample_size truncation internally via set_N.
 
         Structure learning failures are handled internally: each
         failing run records its failure status and error in the run's
@@ -725,7 +732,8 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         Args:
             parameters: Validated parameter values.
             mode: Execution mode.
-            context: Workflow context (unused).
+            context: Workflow context providing the complete matrix
+                for cross-job data caching.
             logger: Optional logger.
 
         Returns:
@@ -766,10 +774,15 @@ class DiscoveryActionProvider(CausalIQActionProvider):
 
         total_start = perf_counter()
 
-        # Load data once for efficient matrix execution.
+        # Load data once for efficient matrix execution.  The data is
+        # cached per input path so each dataset is read once per
+        # workflow run, loaded at the maximum sample size required by
+        # the matrix (see causaliq_discovery.data_cache).
         data_load_start = perf_counter()
         try:
-            numpy_data, _ = normalise_data(input_path, variable_types)
+            numpy_data = load_cached_data(
+                input_path, variable_types, sizes, context
+            )
         except Exception as exc:
             return self._all_runs_failed(
                 output_base=output_base,

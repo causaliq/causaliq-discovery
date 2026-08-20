@@ -8,6 +8,63 @@ from causaliq_data.numpy import NumPy
 
 from causaliq_discovery.variable_type import VariableType
 
+# Number of rows read when sniffing a file's dataset type.
+_SNIFF_ROWS = 100
+
+
+def read_data(
+    data: str,
+    variable_types: Optional[Dict[str, VariableType]],
+    max_rows: Optional[int] = None,
+) -> Tuple[NumPy, Dict[str, VariableType]]:
+    """Read a CSV file into a NumPy object, capping rows read from disk.
+
+    Uses the ``N`` argument of :meth:`NumPy.read` so at most ``max_rows``
+    rows are loaded, unlike :func:`normalise_data` which reads the whole
+    file.  This lets workflow actions load a dataset once at the maximum
+    required sample size and reuse the object at smaller sizes via
+    :meth:`NumPy.set_N`.
+
+    Args:
+        data: CSV file path.
+        variable_types: Variable type overrides, or None to impute
+            types from the data.
+        max_rows: Maximum number of rows to read, or None for all
+            rows.  Values below 2 load the whole file.
+
+    Returns:
+        Tuple of (NumPy data object, resolved variable type dict).
+
+    Raises:
+        NotImplementedError: If variable_types is a string (file path),
+            or if ORDINAL/COUNT types are requested.
+        ValueError: If dtypes are unsupported, mixed, if max_rows
+            exceeds the file length, or if variable_types keys do not
+            match the data nodes.
+    """
+    if isinstance(variable_types, str):
+        raise NotImplementedError(
+            "Network context file paths for 'variable_types' "
+            "are not yet supported in v1.0.0."
+        )
+    if max_rows is not None and max_rows < 2:
+        max_rows = None
+    if variable_types is not None:
+        dstype = _dstype_from_variable_types(variable_types)
+    else:
+        dstype = _dstype_from_path(data)
+    try:
+        numpy_data = NumPy.read(data, dstype, N=max_rows)
+    except ValueError as exc:
+        if max_rows is not None and "Bad argument values" in str(exc):
+            # Requested rows exceed the file length; load the whole
+            # file so per-run sampling reports the actual problem.
+            numpy_data = NumPy.read(data, dstype)
+        else:
+            raise
+    resolved = _resolve_variable_types(numpy_data, variable_types)
+    return numpy_data, resolved
+
 
 def normalise_data(
     data: Union[str, pd.DataFrame, Data],
@@ -123,6 +180,24 @@ def _dstype_from_df(df: pd.DataFrame) -> DatasetType:
             "All columns must be the same base type."
         )
     return DatasetType.CATEGORICAL if has_str else DatasetType.CONTINUOUS
+
+
+def _dstype_from_path(path: str) -> DatasetType:
+    """Determine DatasetType by sniffing a small header sample.
+
+    Reads the first ``_SNIFF_ROWS`` rows with default dtype inference
+    and classifies the file via :func:`_dstype_from_df`, so integer
+    columns and mixed-type columns raise the same errors as a full
+    read.
+
+    Args:
+        path: CSV file path.
+
+    Returns:
+        DatasetType.CONTINUOUS or DatasetType.CATEGORICAL.
+    """
+    df = pd.read_csv(path, nrows=_SNIFF_ROWS, keep_default_na=False)
+    return _dstype_from_df(df)
 
 
 def _dstype_from_variable_types(

@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any, Dict, List
 
 import pytest
 from causaliq_core import ActionValidationError
@@ -15,6 +16,20 @@ from causaliq_discovery.workflow_action import (
 _DATA = Path(__file__).parent.parent / "data" / "functional"
 _DISCRETE_CSV = str(_DATA / "discrete.csv")
 _CONTINUOUS_CSV = str(_DATA / "continuous.csv")
+
+
+class _DummyContext:
+    """Minimal WorkflowContext stand-in for cross-job cache tests."""
+
+    def __init__(
+        self,
+        matrix: Dict[str, List[Any]],
+        matrix_values: Dict[str, Any],
+    ) -> None:
+        self.matrix = matrix
+        self.matrix_values = matrix_values
+        self.mode = "run"
+        self.cache = None
 
 
 # DiscoveryActionProvider has correct provider metadata.
@@ -326,19 +341,19 @@ def test_matrix_run_with_variant_output_path(tmp_path: Path) -> None:
 def test_matrix_run_reads_data_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import causaliq_discovery.workflow_action as wa
+    import causaliq_discovery.data_cache as dc
 
     call_count = 0
-    original_normalise = wa.normalise_data
+    original_read = dc.read_data
 
-    def counting_normalise(  # type: ignore[no-untyped-def]
-        data, variable_types
+    def counting_read(  # type: ignore[no-untyped-def]
+        data, variable_types, max_rows=None
     ):
         nonlocal call_count
         call_count += 1
-        return original_normalise(data, variable_types)
+        return original_read(data, variable_types, max_rows)
 
-    monkeypatch.setattr(wa, "normalise_data", counting_normalise)
+    monkeypatch.setattr(dc, "read_data", counting_read)
 
     provider = DiscoveryActionProvider()
     provider.run(
@@ -352,6 +367,151 @@ def test_matrix_run_reads_data_once(
         mode="run",
     )
     assert call_count == 1
+
+
+# A second matrix job reuses the cached dataset (read only once).
+def test_cached_data_reused_across_jobs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import causaliq_discovery.data_cache as dc
+
+    call_count = 0
+    original_read = dc.read_data
+
+    def counting_read(  # type: ignore[no-untyped-def]
+        data, variable_types, max_rows=None
+    ):
+        nonlocal call_count
+        call_count += 1
+        return original_read(data, variable_types, max_rows)
+
+    monkeypatch.setattr(dc, "read_data", counting_read)
+
+    matrix = {"network": ["discrete"], "sample_size": [5, 8]}
+    provider = DiscoveryActionProvider()
+    for sample_size in [5, 8]:
+        context = _DummyContext(
+            matrix=matrix,
+            matrix_values={
+                "network": "discrete",
+                "sample_size": sample_size,
+            },
+        )
+        status, metadata, _ = provider.run(
+            "learn_graph",
+            {
+                "input": _DISCRETE_CSV,
+                "algorithm": "hc-stable",
+                "output": str(tmp_path / f"out_{sample_size}"),
+                "sample_size": sample_size,
+            },
+            mode="run",
+            context=context,
+        )
+        assert status == "success", metadata
+    assert call_count == 1
+    cached = dc._DATA_CACHE.get(dc._cache_key(_DISCRETE_CSV, None))
+    assert cached is not None
+    assert cached.data.shape[0] == 8
+
+
+# Dataset is read once per network even when matrix jobs interleave
+# networks and sample sizes in an arbitrary order.
+def test_matrix_jobs_interleaved_reads_each_dataset_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import causaliq_discovery.data_cache as dc
+
+    calls = []
+    original_read = dc.read_data
+
+    def counting_read(  # type: ignore[no-untyped-def]
+        data, variable_types, max_rows=None
+    ):
+        calls.append((str(data), max_rows))
+        return original_read(data, variable_types, max_rows)
+
+    monkeypatch.setattr(dc, "read_data", counting_read)
+
+    matrix = {"network": ["discrete", "continuous"], "sample_size": [5, 8]}
+    jobs = [
+        (_DISCRETE_CSV, 5),
+        (_CONTINUOUS_CSV, 5),
+        (_DISCRETE_CSV, 8),
+        (_CONTINUOUS_CSV, 8),
+    ]
+    provider = DiscoveryActionProvider()
+    for index, (input_path, sample_size) in enumerate(jobs):
+        context = _DummyContext(
+            matrix=matrix,
+            matrix_values={"network": "x", "sample_size": sample_size},
+        )
+        status, metadata, _ = provider.run(
+            "learn_graph",
+            {
+                "input": input_path,
+                "algorithm": "hc-stable",
+                "output": str(tmp_path / f"out_{index}"),
+                "sample_size": sample_size,
+            },
+            mode="run",
+            context=context,
+        )
+        assert status == "success", metadata
+
+    # Each dataset is read exactly once, at the matrix maximum size.
+    assert sorted(calls) == sorted([(_DISCRETE_CSV, 8), (_CONTINUOUS_CSV, 8)])
+
+
+# Data is loaded at the matrix maximum sample size, not the job size.
+def test_matrix_loads_at_max_sample_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import causaliq_discovery.data_cache as dc
+
+    # Synthetic categorical CSV with more rows than the matrix max.
+    csv_path = tmp_path / "large_discrete.csv"
+    letters = "abcde"
+    lines = ["P,Q,R"]
+    lines += [
+        f"{letters[i % 3]},{letters[i % 2]},{letters[i % 5]}"
+        for i in range(250)
+    ]
+    csv_path.write_text("\n".join(lines))
+
+    call_sizes = []
+    original_read = dc.read_data
+
+    def counting_read(  # type: ignore[no-untyped-def]
+        data, variable_types, max_rows=None
+    ):
+        call_sizes.append(max_rows)
+        return original_read(data, variable_types, max_rows)
+
+    monkeypatch.setattr(dc, "read_data", counting_read)
+
+    matrix = {"network": ["discrete"], "sample_size": [200, 100]}
+    provider = DiscoveryActionProvider()
+    for sample_size in [100, 200]:
+        context = _DummyContext(
+            matrix=matrix,
+            matrix_values={
+                "network": "discrete",
+                "sample_size": sample_size,
+            },
+        )
+        provider.run(
+            "learn_graph",
+            {
+                "input": str(csv_path),
+                "algorithm": "hc-stable",
+                "output": str(tmp_path / f"out_{sample_size}"),
+                "sample_size": sample_size,
+            },
+            mode="run",
+            context=context,
+        )
+    assert call_sizes == [200]
 
 
 # _meta.json written by single run contains convention metadata payload.

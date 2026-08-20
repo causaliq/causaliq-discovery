@@ -26,8 +26,8 @@ knowledge guidance with the following commit sequence:
 1. ✅ `learn_graph` workflow action
 1. ✅ Tetrad FGES Java integration and reference testing
 1. ✅ Handle errors gracefully, categorising them systematically
-1. ✅ [Fix so responsive to trace argument expressions](current_task.md) [2026-08-20]
-* 📊 Optimise data loading [2026-08-20]
+1. ✅ Fix so trace argument expressions work [2026-08-20]
+* ✅ [Optimise data loading](current_task.md) [2026-08-20]
 * 📊 Variable ordering (and, possibly, data randomisation)
 * 📊 Refactor large modules e.g. `workflow_action`
 ---

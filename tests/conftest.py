@@ -9,6 +9,18 @@ from causaliq_core.r.availability import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_data_cache() -> None:
+    """Clear the workflow data cache between tests.
+
+    The learn_graph action caches loaded datasets at module scope, so
+    tests must not leak state into each other.
+    """
+    from causaliq_discovery.data_cache import clear_data_cache
+
+    clear_data_cache()
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers.
 

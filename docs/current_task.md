@@ -1,23 +1,15 @@
-# Fix bug where expressions for the trace argument in learn_graph are not evaluated
+# Optimise data loading in the `learn_graph` action
 
-## Status: DONE (2026-08-19)
+The causaliq-discovery `learn_graph` action is very inefficient as regards loading data needed for structure learning. The data is (re-)loaded each time an action needs it, so if the workflow has a range of matrix parameters, the data is reloaded for every combination of sample_size, hyperparameters, algorithm etc. for a specific network. This matters because the datasets can be 100's of Megabytes in size for the larger networks and loading them may take several minutes.
 
-The `learn_graph` workflow action now respects the `trace` argument when
-it is supplied as an expression string such as:
+The `learn_graph` action should be enhanced so it loads data more intelligently as follows:
 
-```yaml
-trace: (True if {{sample_size}} == 10000 else False)
-```
+ * prior to processing any actions it should determine the maximum sample size required according to the matrix (or input) parameters (which is available to it an argument)
+ * when an action _first_ needs data for a specific network, it should load enough data for the _maximum sample size_ using the `N` argumnt of the NumPy read() call
+ * when an action next needs data for that network it just uses the set_N() call to change the effective size of the data set to the required size.
 
-Implemented in `src/causaliq_discovery/workflow_action.py`:
+ Please devise a plan for this including tests that check a given dataset is only read once. Do not assume sample sizes are in any particular order.
 
-- `_resolve_trace_flag` resolves the `trace` parameter to a bool:
-  plain booleans pass through, numeric values coerce with `bool()`,
-  string literals (`"True"` / `"False"`) parse correctly, and
-  expression strings are evaluated safely via
-  `causaliq_core.utils.evaluate_filter` after workflow template
-  substitution, with matrix variables available as names.
-- `validate_parameters` rejects non-bool/int/str `trace` values early.
 
-Tests added in `tests/unit/test_workflow_action.py` and
-`tests/functional/test_workflow_action.py`.
+
+
