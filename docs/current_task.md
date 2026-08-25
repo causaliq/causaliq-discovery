@@ -1,15 +1,28 @@
-# Optimise data loading in the `learn_graph` action
+# Support new `randomise` argument for `learn_graph` action
 
-The causaliq-discovery `learn_graph` action is very inefficient as regards loading data needed for structure learning. The data is (re-)loaded each time an action needs it, so if the workflow has a range of matrix parameters, the data is reloaded for every combination of sample_size, hyperparameters, algorithm etc. for a specific network. This matters because the datasets can be 100's of Megabytes in size for the larger networks and loading them may take several minutes.
+Add a `randomise` parameter to the causaliq-discovery `learn_graph` action which
+can randomise or reorder dataset variable order and names and row order and selection.
+It can take one or more of the following string values:
+ 
+ * `var_order`: randomise the variable order
+ * `var_alpha`: variables should be set to alphabetic order (not randomised)
+ * `var_best`: variables should be set to optimal (topological) order (not randomised)
+ * `var_worst`: variables should be set to worst (anti-topological) order (not randomised)
+ * `var_names`: randomise the variable names
+ * `row_order`: randomise the row order
+ * `row_sample`: randomise the sample of rows used
 
-The `learn_graph` action should be enhanced so it loads data more intelligently as follows:
+Any combination of these values is allowed *except* that only one of (`var_order`, `var_alpha`, `var_best`, `var_worst`) may be specified.
+If `var_best` or `var_worst` are specified then a `reference` parameter
+must also be present which will specify the ground-truth reference network (as an `.xdsl` or `.dsc` file) so that the variables can be ordered in the topological or anti-topological order. These new arameters should be
+supported in workflow actions and causaliq-discovry CLI. 
 
- * prior to processing any actions it should determine the maximum sample size required according to the matrix (or input) parameters (which is available to it an argument)
- * when an action _first_ needs data for a specific network, it should load enough data for the _maximum sample size_ using the `N` argumnt of the NumPy read() call
- * when an action next needs data for that network it just uses the set_N() call to change the effective size of the data set to the required size.
+It is *VERY IMPORTANT* that randomisations are applied in the same order they are in the legacy code @c:\dev\causaliq\discovery\experiments\run_learn.py because randomisations share a random key sequence so we need to do this to replicate legacy results.
 
- Please devise a plan for this including tests that check a given dataset is only read once. Do not assume sample sizes are in any particular order.
+Approach suggestions:
+* use BN.read() in causaliq_core.bn to read in the reference ground-truth if needed
+* use features in cauasaliq_data Data class to specify or randomise variable order and names, or randomise row order or sample
+* take care to read data files or reference BNs only once no matter the composition of the matrix parameters
+* if the `row_sample` value is specified, then the dataset read must read *ten times* the maximum requested sample size (so that row samples are genuinely random)
 
-
-
-
+Please generate a plan to make these *software changes* and test them. Do not include running the new software to complete work items in causaliq-research.

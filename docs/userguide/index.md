@@ -197,7 +197,7 @@ This optional parameter provides information about the variable types. It can be
 
 ### `sample_size` parameter
 
-This optional parameter determines the number of rows in the input data file that the algorithm will use to learn from. This must be no more than the number of rows in the input data file, or if subsampling randomisation is being used (see below), no more than 10% of the number of rows in the input data file. The default is to use all rows in the input data file, or 10% of the rows if subsampling randomisation is being used.
+This optional parameter determines the number of rows in the input data file that the algorithm will use to learn from. This must be no more than the number of rows in the input data file. When the `row_sample` randomisation option is used, the data is read at ten times the requested sample size so the sample size must be no more than 10% of the rows that are read. The default is to use all rows in the input data file.
 
 
 ### `variant` parameter
@@ -214,13 +214,25 @@ This optional parameters supplies human, simulated human, interventional, or LLM
 
 This optional parameter can be used to randomise aspects of the input dataset to explore the stability of the algorithm. Any combinations of the following values can be used for this randomisation:
 
+- `var_order` a random ordering of the variables is used
+- `var_alpha` variables are set to alphabetic order (deterministic)
+- `var_best` variables are set to optimal (topological) order from a reference network (deterministic)
+- `var_worst` variables are set to worst (anti-topological) order from a reference network (deterministic)
+- `var_names` variable names will be randomised
 - `row_order` a random ordering of rows is used
-- `column_order` a random ordering of the columns is used
-- `column_names` column names will be randomised 
-- `row_subsample` a random selection of rows is used
+- `row_sample` a random selection of rows is used
 
-The default is to use the row and column order, and column names present in the input data fie, and to use the first `sample_size` rows in the data file. 
+Only one of `var_order`, `var_alpha`, `var_best` and `var_worst` may be specified, and
+`var_best`/`var_worst` require the `reference` parameter to identify the ground-truth
+network. When `row_sample` is used, the data is read at ten times the maximum requested
+sample size so that row samples are genuinely random.
+
+The default is to use the row and variable order, and variable names present in the input data file, and to use the first `sample_size` rows in the data file. 
 
 ### `seed` parameter
 
-This parameter defines the randomisation seed when the `randomise` parameter is specified, and is an integer between 0 and 1000. All randomisation in the CausalIQ ecosystem is deterministic - so that a specific `seed` value guarantees the same randomisation on every occasion and every platform so that specific experiments will always produce the same results. Default value is `None` which will trigger an error if the `randomise` parameter is specified.
+This parameter defines the randomisation seed when a randomising `randomise` option is specified (`var_order`, `var_names`, `row_order` or `row_sample`), and is an integer between 0 and 100. All randomisation in the CausalIQ ecosystem is deterministic - so that a specific `seed` value guarantees the same randomisation on every occasion and every platform so that specific experiments will always produce the same results. Default value is `None` which will trigger an error if a randomising option is specified.
+
+### `reference` parameter
+
+This optional parameter is a path to a ground-truth reference network in `.xdsl` or `.dsc` format. It is required when the `var_best` or `var_worst` randomisation option is specified, and is used to order the variables in the optimal (topological) or worst (anti-topological) order for the learning run.

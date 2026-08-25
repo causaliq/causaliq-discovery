@@ -22,6 +22,7 @@ def learn_graph(
     knowledge: Optional[Any] = None,
     randomise: Optional[List[str]] = None,
     seed: Optional[int] = None,
+    reference: Optional[str] = None,
 ) -> DiscoveryResult
 ```
 
@@ -35,11 +36,12 @@ def learn_graph(
 | `hyperparameters` | `dict \| None` | `None` | Hyperparameter name/value pairs, e.g. `{"score": "bdeu", "max_iterations": 100}`. |
 | `trace` | `bool` | `False` | Include a step-by-step execution trace in the result. |
 | `variable_types` | `str \| dict \| None` | `None` | Network context file path or dict mapping column names to `VariableType` values.  If `None`, types are inferred from the data. |
-| `sample_size` | `int \| None` | `None` | Number of rows to use.  Defaults to all rows, or 10 % when `"row_subsample"` randomisation is active. |
+| `sample_size` | `int \| None` | `None` | Number of rows to use.  Defaults to all rows. |
 | `variant` | `str \| None` | `None` | Algorithm variant, e.g. `"causaliq"` or `"bnlearn"`.  Defaults to the first registered variant. |
 | `knowledge` | `Any \| None` | `None` | Knowledge object or JSON file path to guide structure learning.  Defaults to `None` (data-only learning). |
-| `randomise` | `list \| None` | `None` | Randomisation options: `"row_order"`, `"column_order"`, `"column_names"`, `"row_subsample"`.  Requires `seed`. |
-| `seed` | `int \| None` | `None` | Deterministic randomisation seed (0–100).  Required when `randomise` is specified. |
+| `randomise` | `list \| None` | `None` | Randomisation options: `"var_order"`, `"var_alpha"`, `"var_best"`, `"var_worst"`, `"var_names"`, `"row_order"`, `"row_sample"`.  Only one of `var_order`, `var_alpha`, `var_best`, `var_worst` may be specified; `var_best`/`var_worst` require `reference`.  Randomising options require `seed`. |
+| `seed` | `int \| None` | `None` | Deterministic randomisation seed (0–100).  Required when a randomising option is specified. |
+| `reference` | `str \| None` | `None` | Path to a ground-truth reference network (`.xdsl` or `.dsc` file).  Required when `var_best` or `var_worst` is specified. |
 
 ### Returns
 
