@@ -1,5 +1,6 @@
 """Parameter validation for learn_graph."""
 
+import os
 from typing import Any, List, Optional
 
 import pandas as pd
@@ -7,7 +8,25 @@ import pandas as pd
 from causaliq_discovery.variable_type import VariableType
 
 _VALID_RANDOMISE: frozenset = frozenset(
-    {"row_order", "column_order", "column_names", "row_subsample"}
+    {
+        "var_order",
+        "var_alpha",
+        "var_best",
+        "var_worst",
+        "var_names",
+        "row_order",
+        "row_sample",
+    }
+)
+
+# Ordering options are mutually exclusive with each other.
+_ORDERING_RANDOMISE: frozenset = frozenset(
+    {"var_order", "var_alpha", "var_best", "var_worst"}
+)
+
+# Options which randomise the data and therefore require a seed.
+_RANDOMISING_RANDOMISE: frozenset = frozenset(
+    {"var_order", "var_names", "row_order", "row_sample"}
 )
 
 
@@ -219,6 +238,11 @@ def validate_randomise(randomise: Any) -> None:
                 f"Supported: "
                 f"{', '.join(sorted(_VALID_RANDOMISE))}."
             )
+    if len(set(randomise) & _ORDERING_RANDOMISE) > 1:
+        raise ValueError(
+            "Only one of 'var_order', 'var_alpha', 'var_best' and "
+            "'var_worst' may be specified in 'randomise'."
+        )
 
 
 def validate_seed(
@@ -230,17 +254,20 @@ def validate_seed(
     Args:
         seed: Value passed as the ``seed`` argument.
         randomise: The validated randomise argument, used to check
-            that seed is provided when randomisation is active.
+            that seed is provided when a randomising option is active.
+            Deterministic ordering options (``var_alpha``, ``var_best``
+            and ``var_worst``) do not require a seed.
 
     Raises:
         TypeError: If seed is not None or an integer.
         ValueError: If seed is out of the range 0–100, or if
-            randomise is active but seed is None.
+            a randomising option is active but seed is None.
     """
     if seed is None:
-        if randomise:
+        if set(randomise or []) & _RANDOMISING_RANDOMISE:
             raise ValueError(
-                "'seed' must be provided when 'randomise' is " "specified."
+                "'seed' must be provided when a randomising "
+                "'randomise' option is specified."
             )
         return
     if isinstance(seed, bool) or not isinstance(seed, int):
@@ -251,6 +278,53 @@ def validate_seed(
     if seed < 0 or seed > 100:
         raise ValueError(
             f"'seed' must be between 0 and 100 inclusive; " f"got {seed}."
+        )
+
+
+def validate_reference(
+    reference: Any,
+    randomise: Optional[List[str]],
+) -> None:
+    """Validate the reference parameter.
+
+    Args:
+        reference: Value passed as the ``reference`` argument.
+        randomise: The validated randomise argument, used to check
+            that reference is provided for the deterministic ordering
+            options ``var_best`` and ``var_worst``.
+
+    Raises:
+        TypeError: If reference is not None or a string.
+        ValueError: If reference is missing when ``var_best`` or
+            ``var_worst`` is specified, present otherwise, or if the
+            file does not exist or has an unsupported extension.
+    """
+    active = set(randomise or [])
+    needs_reference = bool(active & {"var_best", "var_worst"})
+    if needs_reference:
+        if reference is None:
+            raise ValueError(
+                "'reference' must be provided when 'var_best' or "
+                "'var_worst' is specified."
+            )
+        if not isinstance(reference, str):
+            raise TypeError(
+                "'reference' must be a string path; "
+                f"got {type(reference).__name__}."
+            )
+        if not reference:
+            raise ValueError("'reference' must not be an empty string.")
+        if not reference.lower().endswith((".xdsl", ".dsc")):
+            raise ValueError(
+                "'reference' must point to an .xdsl or .dsc file; "
+                f"got '{reference}'."
+            )
+        if not os.path.isfile(reference):
+            raise ValueError(f"'reference' file not found: {reference}.")
+    elif reference is not None:
+        raise ValueError(
+            "'reference' may only be provided when 'var_best' or "
+            "'var_worst' is specified."
         )
 
 
@@ -265,6 +339,7 @@ def validate_all(
     variant: Any,
     randomise: Any,
     seed: Any,
+    reference: Any,
 ) -> None:
     """Run all parameter validators for learn_graph.
 
@@ -279,6 +354,7 @@ def validate_all(
         variant: See learn_graph.
         randomise: See learn_graph.
         seed: See learn_graph.
+        reference: See learn_graph.
 
     Raises:
         TypeError: On any type violation.
@@ -294,3 +370,4 @@ def validate_all(
     validate_variant(variant)
     validate_randomise(randomise)
     validate_seed(seed, randomise)
+    validate_reference(reference, randomise)

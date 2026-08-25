@@ -4,11 +4,13 @@ import subprocess
 
 import pandas as pd
 import pytest
+from causaliq_core.graph import DAG
 from causaliq_core.r.exceptions import RRuntimeError
 
 from causaliq_discovery import (
     DiscoveryResult,
     VariableType,
+    _rename_trace_arc,
     learn_graph,
 )
 from causaliq_discovery.algorithms.bnlearn import BnlearnAdapter
@@ -289,6 +291,290 @@ def test_seed_float_raises_type_error(df):
             randomise=["row_order"],
             seed=1.5,
         )
+
+
+# Two ordering options together raise ValueError.
+def test_randomise_ordering_group_exclusive_raises(df):
+    with pytest.raises(ValueError, match="Only one of"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_order", "var_alpha"],
+            seed=0,
+        )
+
+
+# var_best without reference raises ValueError.
+def test_var_best_without_reference_raises_value_error(df):
+    with pytest.raises(ValueError, match="reference"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_best"],
+        )
+
+
+# var_worst without reference raises ValueError.
+def test_var_worst_without_reference_raises_value_error(df):
+    with pytest.raises(ValueError, match="reference"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_worst"],
+        )
+
+
+# reference without var_best/var_worst raises ValueError.
+def test_reference_without_ordering_raises_value_error(df):
+    with pytest.raises(ValueError, match="reference"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_names"],
+            seed=0,
+            reference="ref.xdsl",
+        )
+
+
+# Non-string reference raises TypeError.
+def test_reference_non_string_raises_type_error(df):
+    with pytest.raises(TypeError, match="reference"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_best"],
+            reference=42,
+        )
+
+
+# reference with a bad extension raises ValueError.
+def test_reference_bad_extension_raises_value_error(df, tmp_path):
+    ref = tmp_path / "ref.csv"
+    ref.write_text("[A][B|A]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=".xdsl"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_best"],
+            reference=str(ref),
+        )
+
+
+# reference pointing at a missing file raises ValueError.
+def test_reference_missing_file_raises_value_error(df, tmp_path):
+    missing = tmp_path / "missing.xdsl"
+    with pytest.raises(ValueError, match="not found"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_best"],
+            reference=str(missing),
+        )
+
+
+# var_alpha is deterministic and needs no seed.
+def test_var_alpha_no_seed_accepted(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        side_effect=NotImplementedError,
+    )
+    with pytest.raises(NotImplementedError):
+        learn_graph(data=df, algorithm="hc", randomise=["var_alpha"])
+
+
+# var_best loads the reference and orders the data topologically.
+def test_var_best_orders_data_by_reference(df, mocker, tmp_path):
+    ref = tmp_path / "ref.xdsl"
+    ref.write_text("[A][B|A]\n", encoding="utf-8")
+    fake_bn = mocker.MagicMock()
+    fake_bn.dag.nodes = ["A", "B"]
+    fake_bn.dag.ordered_nodes.return_value = iter(["B", "A"])
+    mocker.patch(
+        "causaliq_discovery.load_cached_reference", return_value=fake_bn
+    )
+    captured = {}
+
+    class RecordingAdapter(CausalIQHCAdapter):
+        def convert_input(self, data, *args, **kwargs):
+            captured["data"] = data
+            return data
+
+        def run(self, converted_data, *args, **kwargs):
+            nodes = list(converted_data.get_order())
+            return (DAG(nodes, []), None)
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=RecordingAdapter
+    )
+    result = learn_graph(
+        data=df,
+        algorithm="hc",
+        randomise=["var_best"],
+        reference=str(ref),
+    )
+    assert captured["data"].get_order() == ("B", "A")
+    assert result.metadata["reference"] == str(ref)
+    assert result.metadata["randomise"] == ["var_best"]
+    assert result.metadata["variable_order"] == ["B", "A"]
+
+
+# var_worst orders the data in reverse topological order.
+def test_var_worst_orders_data_reversed(df, mocker, tmp_path):
+    ref = tmp_path / "ref.dsc"
+    ref.write_text("network {}\n", encoding="utf-8")
+    fake_bn = mocker.MagicMock()
+    fake_bn.dag.nodes = ["A", "B"]
+    fake_bn.dag.ordered_nodes.return_value = iter(["A", "B"])
+    mocker.patch(
+        "causaliq_discovery.load_cached_reference", return_value=fake_bn
+    )
+    captured = {}
+
+    class RecordingAdapter(CausalIQHCAdapter):
+        def convert_input(self, data, *args, **kwargs):
+            captured["data"] = data
+            return data
+
+        def run(self, converted_data, *args, **kwargs):
+            nodes = list(converted_data.get_order())
+            return (DAG(nodes, []), None)
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=RecordingAdapter
+    )
+    learn_graph(
+        data=df,
+        algorithm="hc",
+        randomise=["var_worst"],
+        reference=str(ref),
+    )
+    assert captured["data"].get_order() == ("B", "A")
+
+
+# var_names renames the result graph back to original names.
+def test_var_names_renames_result_graph(df, mocker):
+    class RenamingAdapter(CausalIQHCAdapter):
+        def run(self, converted_data, *args, **kwargs):
+            nodes = list(converted_data.get_order())
+            return (DAG(nodes, []), None)
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=RenamingAdapter
+    )
+    result = learn_graph(
+        data=df, algorithm="hc", randomise=["var_names"], seed=1
+    )
+    assert set(result.graph.nodes) == {"A", "B"}
+    assert result.metadata["randomise"] == ["var_names"]
+    assert result.metadata["seed"] == 1
+    # variable_order reports the randomised names actually used.
+    assert len(result.metadata["variable_order"]) == 2
+    assert result.metadata["variable_order"] != ["A", "B"]
+
+
+# _rename_trace_arc renames node names in a list arc in place.
+def test_rename_trace_arc_renames_list():
+    step = {"arc_change": ["X", "Y"]}
+    _rename_trace_arc(step, "arc_change", {"X": "A", "Y": "B"})
+    assert step["arc_change"] == ["A", "B"]
+
+
+# _rename_trace_arc leaves non-list values unchanged.
+def test_rename_trace_arc_ignores_non_list():
+    step = {"arc_change": None}
+    _rename_trace_arc(step, "arc_change", {"X": "A"})
+    assert step["arc_change"] is None
+
+
+# var_names renames the trace arcs back to original names.
+def test_var_names_renames_trace_arcs(df, mocker):
+    class TracingAdapter(CausalIQHCAdapter):
+        def convert_input(self, data, *args, **kwargs):
+            self.data = data
+            return data
+
+        def run(self, converted_data, *args, **kwargs):
+            nodes = list(self.data.get_order())
+            return (DAG(nodes, []), object())
+
+        def build_trace(self, raw_output):
+            nodes = list(self.data.get_order())
+            return [
+                {"arc_change": [nodes[0], nodes[1]]},
+                {
+                    "arc_change": None,
+                    "alternative_arc_change": [nodes[1], nodes[0]],
+                },
+            ]
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=TracingAdapter
+    )
+    result = learn_graph(
+        data=df, algorithm="hc", randomise=["var_names"], seed=1, trace=True
+    )
+    assert result.trace is not None
+    assert result.trace[0]["arc_change"] == ["A", "B"]
+    assert result.trace[1]["arc_change"] is None
+    assert result.trace[1]["alternative_arc_change"] == ["B", "A"]
+
+
+# Empty-string reference raises ValueError.
+def test_reference_empty_string_raises_value_error(df):
+    with pytest.raises(ValueError, match="empty"):
+        learn_graph(
+            data=df,
+            algorithm="tabu-stable",
+            randomise=["var_best"],
+            reference="",
+        )
+
+
+# Reference network nodes not matching data nodes is an input error.
+def test_var_best_reference_node_mismatch_is_input(df, mocker, tmp_path):
+    ref = tmp_path / "ref.xdsl"
+    ref.write_text("[A][B|A]\n", encoding="utf-8")
+    fake_bn = mocker.MagicMock()
+    fake_bn.dag.nodes = ["A", "C"]
+    mocker.patch(
+        "causaliq_discovery.load_cached_reference", return_value=fake_bn
+    )
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        return_value=CausalIQHCAdapter,
+    )
+    with pytest.raises(LearningInputError, match="do not match"):
+        learn_graph(
+            data=df,
+            algorithm="hc",
+            randomise=["var_best"],
+            reference=str(ref),
+        )
+
+
+# variable_order lists the first ten variables in process order.
+def test_variable_order_first_ten(mocker):
+    df = pd.DataFrame({f"C{i}": [1.0, 2.0] for i in range(12)})
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        return_value=mocker.MagicMock(),
+    )
+    result = learn_graph(data=df, algorithm="tabu-stable")
+    assert result.metadata["variable_order"] == [f"C{i}" for i in range(10)]
+
+
+# variable_order is present even without any randomisation.
+def test_variable_order_present_without_randomise(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        return_value=mocker.MagicMock(),
+    )
+    result = learn_graph(data=df, algorithm="tabu-stable")
+    assert result.metadata["variable_order"] == ["A", "B"]
 
 
 # learn_graph returns DiscoveryResult when adapter is available.

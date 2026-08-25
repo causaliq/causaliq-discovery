@@ -7,6 +7,11 @@ the large datasets used by the bigger networks.  This module caches
 loaded ``NumPy`` data objects at module scope so that a dataset is read
 once per workflow run, at the maximum sample size required by the
 matrix, and reused for every smaller size via ``NumPy.set_N``.
+
+Reference ground-truth networks (``.xdsl``/``.dsc`` files) used to
+order variables for the ``var_best``/``var_worst`` randomisation
+options are cached the same way, so they too are read only once per
+workflow run.
 """
 
 from __future__ import annotations
@@ -14,6 +19,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from causaliq_core.bn import BN
+from causaliq_core.bn.io import read_bn
 from causaliq_data.numpy import NumPy
 
 from causaliq_discovery.input import read_data
@@ -23,6 +30,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 # Input path (+ variable type overrides) -> loaded NumPy data object.
 _DATA_CACHE: Dict[str, NumPy] = {}
+
+# Reference network path -> parsed BN object.
+_REFERENCE_CACHE: Dict[str, BN] = {}
 
 # Numeric suffix multipliers used when parsing matrix sample sizes such
 # as "1K" or "10M" (decimal, matching the dataset sizes in the repo).
@@ -37,6 +47,28 @@ _SUFFIX_MULTIPLIERS = {
 def clear_data_cache() -> None:
     """Clear all cached data objects (mainly for tests)."""
     _DATA_CACHE.clear()
+    _REFERENCE_CACHE.clear()
+
+
+def load_cached_reference(path: str) -> BN:
+    """Return a reference BN for the path, cached across jobs.
+
+    The reference network is parsed once per path and reused by every
+    matrix job so the file is only read from disk once per workflow
+    run.
+
+    Args:
+        path: Path to an ``.xdsl`` or ``.dsc`` reference network file.
+
+    Returns:
+        The parsed BN object for the given path.
+    """
+    cached = _REFERENCE_CACHE.get(path)
+    if cached is not None:
+        return cached
+    bn = read_bn(path)
+    _REFERENCE_CACHE[path] = bn
+    return bn
 
 
 def _cache_key(
@@ -131,6 +163,7 @@ def load_cached_data(
     variable_types: Optional[Dict[str, Any]],
     sizes: Optional[List[int]],
     context: Optional[WorkflowContext],
+    randomise: Optional[List[str]] = None,
 ) -> NumPy:
     """Return a NumPy data object for the input, cached across jobs.
 
@@ -140,16 +173,24 @@ def load_cached_data(
     and only change the effective size via ``set_N``.  The cache is
     keyed by the input path, so different networks are independent.
 
+    When the ``row_sample`` randomisation option is active the data is
+    read at *ten times* the maximum requested sample size so that row
+    samples are genuinely random (matching the legacy experiment
+    framework).
+
     Args:
         input_path: CSV input path.
         variable_types: Optional variable type overrides.
         sizes: Sample sizes for the current action call.
         context: Workflow context providing the complete matrix.
+        randomise: Optional randomisation options for the action.
 
     Returns:
         A cached or freshly loaded NumPy data object.
     """
     max_n = required_max_sample_size(sizes, context)
+    if max_n is not None and randomise and "row_sample" in randomise:
+        max_n = max_n * 10
     key = _cache_key(input_path, variable_types)
     cached = _DATA_CACHE.get(key)
     if cached is not None and (max_n is None or cached.data.shape[0] >= max_n):

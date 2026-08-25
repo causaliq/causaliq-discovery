@@ -1,9 +1,10 @@
 """causaliq-discovery: Causal graph discovery from data."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
+from causaliq_discovery.data_cache import load_cached_reference
 from causaliq_discovery.errors import LearningError
 from causaliq_discovery.input import apply_sampling, normalise_data
 from causaliq_discovery.params import validate_all
@@ -23,6 +24,23 @@ __license__ = "MIT"
 VERSION = tuple(map(int, __version__.split(".")))
 
 
+def _rename_trace_arc(
+    step: Dict[str, Any],
+    key: str,
+    name_map: Dict[str, str],
+) -> None:
+    """Rename node names in a trace arc list in place.
+
+    Args:
+        step: Trace step dict.
+        key: Trace key holding an optional pair of node names.
+        name_map: Name mapping {old name: new name}.
+    """
+    arc = step.get(key)
+    if isinstance(arc, list):
+        step[key] = [name_map.get(n, n) for n in arc]
+
+
 def learn_graph(
     data: Union[str, pd.DataFrame],
     algorithm: str,
@@ -35,6 +53,7 @@ def learn_graph(
     knowledge: Optional[Any] = None,
     randomise: Optional[List[str]] = None,
     seed: Optional[int] = None,
+    reference: Optional[str] = None,
 ) -> DiscoveryResult:
     """Learn a causal graph from data.
 
@@ -55,20 +74,27 @@ def learn_graph(
             context file path or a dict mapping column names to
             VariableType values.  If None, types are imputed from
             the data.
-        sample_size: Number of rows to use.  Defaults to all rows,
-            or 10 % of rows when ``row_subsample`` randomisation is
-            active.
+        sample_size: Number of rows to use.  Defaults to all rows.
         variant: Algorithm variant, e.g. ``"bnlearn"`` or
             ``"causaliq"``.  Defaults to the first registered variant.
         knowledge: Knowledge object or JSON file path guiding the
             structure learning.  Not yet fully specified; defaults to
             None (data-only learning).
         randomise: List of randomisation options to apply to the
-            input data.  Supported values: ``"row_order"``,
-            ``"column_order"``, ``"column_names"``,
-            ``"row_subsample"``.  Requires ``seed``.
+            input data.  Supported values: ``"var_order"``,
+            ``"var_alpha"``, ``"var_best"``, ``"var_worst"``,
+            ``"var_names"``, ``"row_order"`` and ``"row_sample"``.
+            Only one of ``var_order``, ``var_alpha``, ``var_best``
+            and ``var_worst`` may be specified.  ``var_best`` and
+            ``var_worst`` require ``reference``.  Randomising options
+            require ``seed``.  Randomisations are applied in the
+            legacy experiment order (rows, then names, then variable
+            order).
         seed: Deterministic randomisation seed (0–100).  Required
-            when ``randomise`` is specified.
+            when a randomising option is specified.
+        reference: Path to a ground-truth reference network
+            (``.xdsl`` or ``.dsc`` file).  Required when ``var_best``
+            or ``var_worst`` is specified.
 
     Returns:
         DiscoveryResult containing the learnt graph, metadata, and
@@ -94,6 +120,7 @@ def learn_graph(
         variant=variant,
         randomise=randomise,
         seed=seed,
+        reference=reference,
     )
 
     # Validate algorithm and variant against registry.
@@ -117,7 +144,28 @@ def learn_graph(
     try:
         # Normalise data input to NumPy and resolve variable types.
         numpy_data, resolved_types = normalise_data(data, variable_types)
-        apply_sampling(numpy_data, sample_size, randomise, seed)
+
+        # Load the reference network and derive the topological order
+        # once when var_best/var_worst is requested.
+        topo_order: Optional[Tuple[str, ...]] = None
+        active_randomise = set(randomise or [])
+        if active_randomise & {"var_best", "var_worst"}:
+            assert reference is not None  # guaranteed by validate_reference
+            reference_bn = load_cached_reference(reference)
+            if set(reference_bn.dag.nodes) != set(numpy_data.nodes):
+                raise ValueError(
+                    "The reference network nodes do not match the "
+                    f"data nodes: {sorted(reference_bn.dag.nodes)} "
+                    f"vs {sorted(numpy_data.nodes)}."
+                )
+            topo_order = tuple(reference_bn.dag.ordered_nodes())
+
+        apply_sampling(numpy_data, sample_size, randomise, seed, topo_order)
+
+        # Record the (possibly randomised) variable order supplied to
+        # the algorithm before learning starts, since some algorithms
+        # reorder nodes internally during structure learning.
+        variable_order = list(numpy_data.get_order())[:10]
 
         # Build merged hyperparameters: spec defaults overlaid with
         # any user-supplied values.
@@ -144,8 +192,27 @@ def learn_graph(
             "variant": spec.variant,
             "hyperparameters": effective_hp,
         }
+        if randomise:
+            metadata["randomise"] = list(randomise)
+        if seed is not None:
+            metadata["seed"] = seed
+        if reference is not None:
+            metadata["reference"] = reference
+        metadata["variable_order"] = variable_order
 
         result_trace = adapter.build_trace(raw_output) if trace else None
+
+        # Report results under the original variable names when names
+        # were randomised, matching the legacy experiment framework.
+        if "var_names" in active_randomise:
+            name_map_back = dict(numpy_data.ext_to_orig)
+            graph.rename(name_map_back)
+            if result_trace is not None:
+                for step in result_trace:
+                    _rename_trace_arc(step, "arc_change", name_map_back)
+                    _rename_trace_arc(
+                        step, "alternative_arc_change", name_map_back
+                    )
     except Exception as exc:
         raise adapter.translate_error(exc) from exc
 

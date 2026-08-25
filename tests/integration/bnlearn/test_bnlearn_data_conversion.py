@@ -7,6 +7,8 @@ when R or the bnlearn package is unavailable.
 Mark: ``@pytest.mark.r_integration``
 """
 
+from typing import Optional, Tuple
+
 import numpy as np
 import pytest
 from causaliq_core.r import run_r_script
@@ -21,13 +23,21 @@ class _MockData:
     def __init__(
         self,
         sample: np.ndarray,
-        nodes: tuple,
+        nodes: Tuple[str, ...],
         dstype: str,
+        order: Optional[Tuple[int, ...]] = None,
     ) -> None:
         self.sample = sample
         self.nodes = nodes
         self.dstype = dstype
         self.N = sample.shape[0]
+        self.order = order if order is not None else tuple(range(len(nodes)))
+        self.ext_to_orig = {n: n for n in nodes}
+        self.orig_to_ext = {n: n for n in nodes}
+
+    def get_order(self) -> Tuple[str, ...]:
+        """Return external names in process order."""
+        return tuple(self.orig_to_ext[self.nodes[i]] for i in self.order)
 
 
 # r_integration test: generated continuous data.frame code executes in R.

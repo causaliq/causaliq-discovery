@@ -138,9 +138,19 @@ def cli() -> None:
     multiple=True,
     metavar="OPTION",
     help=(
-        "Randomise aspect of the input data. "
-        "Supported: row_order, column_order, column_names, "
-        "row_subsample. May be repeated."
+        "Randomise aspect of the input data. Supported: var_order, "
+        "var_alpha, var_best, var_worst, var_names, row_order, "
+        "row_sample. May be repeated."
+    ),
+)
+@click.option(
+    "-R",
+    "--reference",
+    default=None,
+    metavar="FILE",
+    help=(
+        "Ground-truth reference network (.xdsl or .dsc file) used to "
+        "order variables for var_best/var_worst."
     ),
 )
 @click.option(
@@ -149,7 +159,7 @@ def cli() -> None:
     default=None,
     type=int,
     metavar="N",
-    help="Deterministic randomisation seed (0–1000).",
+    help="Deterministic randomisation seed (0–100).",
 )
 def learn_cmd(
     input_path: str,
@@ -162,6 +172,7 @@ def learn_cmd(
     variant: Optional[str],
     knowledge: Optional[str],
     randomise: tuple,
+    reference: Optional[str],
     seed: Optional[int],
 ) -> None:
     """Learn a causal graph from data.
@@ -170,6 +181,8 @@ def learn_cmd(
     Examples:
       cqdisc learn -i data.csv -a tabu-stable -o results/
       cqdisc learn -i data.csv -a hc -o results/ -p score=bdeu -d
+      cqdisc learn -i data.csv -a hc -o results/ -r var_best \\
+        -R reference.xdsl
     """
     randomise_list = list(randomise) if randomise else None
     try:
@@ -184,6 +197,7 @@ def learn_cmd(
             variant=variant,
             knowledge=knowledge,
             randomise=randomise_list,
+            reference=reference,
             seed=seed,
         )
     except (TypeError, ValueError) as exc:

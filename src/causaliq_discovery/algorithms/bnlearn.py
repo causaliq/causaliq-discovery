@@ -123,22 +123,25 @@ class BnlearnAdapter(PackageAdapter):
             ``n_rows``: Number of rows in the dataset.
         """
         vt: Dict[str, VariableType] = variable_types or {}
+        columns = list(data.get_order())
+        ordered_sample = data.sample[:, list(data.order)]
         node_types: Dict[str, str] = {
             col: _VT_TO_R_TYPE.get(
-                vt.get(col, VariableType.CONTINUOUS), "CONTINUOUS"
+                vt.get(data.ext_to_orig[col], VariableType.CONTINUOUS),
+                "CONTINUOUS",
             )
-            for col in data.nodes
+            for col in columns
         }
         r_data_code = data_to_r_dataframe(
-            sample=data.sample,
-            columns=list(data.nodes),
+            sample=ordered_sample,
+            columns=columns,
             node_types=node_types,
             varname=_DATA_VARNAME,
         )
         return {
             "r_data_code": r_data_code,
             "dstype": data.dstype,
-            "nodes": list(data.nodes),
+            "nodes": columns,
             "n_rows": data.N,
         }
 

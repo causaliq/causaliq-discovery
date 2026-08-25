@@ -59,6 +59,9 @@ def test_provider_inputs_keys() -> None:
         "hyperparameters",
         "trace",
         "variable_types",
+        "randomise",
+        "seed",
+        "reference",
     }
     assert required_inputs.issubset(set(provider.inputs.keys()))
 
@@ -179,6 +182,50 @@ def test_validate_valid_list_sample_size_ok() -> None:
             "algorithm": "hc-stable",
             "output": "/out",
             "sample_size": [100, 200],
+        },
+    )
+
+
+# validate_parameters raises for an unknown randomise option.
+def test_validate_bad_randomise_raises() -> None:
+    provider = DiscoveryActionProvider()
+    with pytest.raises(ActionValidationError, match="randomise"):
+        provider.validate_parameters(
+            "learn_graph",
+            {
+                "input": "data.csv",
+                "algorithm": "hc-stable",
+                "output": "/out",
+                "randomise": ["bad_option"],
+            },
+        )
+
+
+# validate_parameters raises for var_best without a reference.
+def test_validate_var_best_without_reference_raises() -> None:
+    provider = DiscoveryActionProvider()
+    with pytest.raises(ActionValidationError, match="reference"):
+        provider.validate_parameters(
+            "learn_graph",
+            {
+                "input": "data.csv",
+                "algorithm": "hc-stable",
+                "output": "/out",
+                "randomise": ["var_best"],
+            },
+        )
+
+
+# validate_parameters accepts a deterministic ordering without seed.
+def test_validate_var_alpha_without_seed_ok() -> None:
+    provider = DiscoveryActionProvider()
+    provider.validate_parameters(
+        "learn_graph",
+        {
+            "input": "data.csv",
+            "algorithm": "hc-stable",
+            "output": "/out",
+            "randomise": ["var_alpha"],
         },
     )
 
@@ -514,6 +561,124 @@ def test_matrix_loads_at_max_sample_size(
     assert call_sizes == [200]
 
 
+# row_sample reads data at ten times the matrix maximum size.
+def test_matrix_row_sample_loads_ten_times(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import causaliq_discovery.data_cache as dc
+
+    # Synthetic categorical CSV with more rows than ten times the max.
+    csv_path = tmp_path / "large_discrete.csv"
+    letters = "abcde"
+    lines = ["P,Q,R"]
+    lines += [
+        f"{letters[i % 3]},{letters[i % 2]},{letters[i % 5]}"
+        for i in range(1200)
+    ]
+    csv_path.write_text("\n".join(lines))
+
+    call_sizes = []
+    original_read = dc.read_data
+
+    def counting_read(  # type: ignore[no-untyped-def]
+        data, variable_types, max_rows=None
+    ):
+        call_sizes.append(max_rows)
+        return original_read(data, variable_types, max_rows)
+
+    monkeypatch.setattr(dc, "read_data", counting_read)
+
+    matrix = {"network": ["discrete"], "sample_size": [50, 100]}
+    provider = DiscoveryActionProvider()
+    for sample_size in [50, 100]:
+        context = _DummyContext(
+            matrix=matrix,
+            matrix_values={
+                "network": "discrete",
+                "sample_size": sample_size,
+            },
+        )
+        status, metadata, _ = provider.run(
+            "learn_graph",
+            {
+                "input": str(csv_path),
+                "algorithm": "hc-stable",
+                "output": str(tmp_path / f"out_{sample_size}"),
+                "sample_size": sample_size,
+                "randomise": ["row_sample"],
+                "seed": 1,
+            },
+            mode="run",
+            context=context,
+        )
+        assert status == "success", metadata
+    # Read once at ten times the matrix maximum (100 * 10).
+    assert call_sizes == [1000]
+
+
+# Single run with var_best uses the reference network for ordering.
+def test_single_run_var_best_uses_reference(tmp_path: Path) -> None:
+    ref = tmp_path / "ref.dsc"
+    ref.write_text(
+        'belief network "xyzuv"\n'
+        "node X {\n"
+        '  type : discrete [ 2 ] = { "0", "1" };\n'
+        "}\n"
+        "node Y {\n"
+        '  type : discrete [ 2 ] = { "0", "1" };\n'
+        "}\n"
+        "node Z {\n"
+        '  type : discrete [ 2 ] = { "0", "1" };\n'
+        "}\n"
+        "node U {\n"
+        '  type : discrete [ 2 ] = { "0", "1" };\n'
+        "}\n"
+        "node V {\n"
+        '  type : discrete [ 2 ] = { "0", "1" };\n'
+        "}\n"
+        "probability ( X ) {\n"
+        "   0.5, 0.5;\n"
+        "}\n"
+        "probability ( Y | X ) {\n"
+        "  (0) : 0.5, 0.5;\n"
+        "  (1) : 0.5, 0.5;\n"
+        "}\n"
+        "probability ( Z ) {\n"
+        "   0.5, 0.5;\n"
+        "}\n"
+        "probability ( U ) {\n"
+        "   0.5, 0.5;\n"
+        "}\n"
+        "probability ( V ) {\n"
+        "   0.5, 0.5;\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    provider = DiscoveryActionProvider()
+    status, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path / "out"),
+            "randomise": ["var_best"],
+            "reference": str(ref),
+        },
+        mode="run",
+    )
+    assert status == "success", metadata
+    out_dir = Path(metadata["outputs"][0])
+    with open(out_dir / "_meta.json") as f:
+        saved = json.load(f)
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["randomise"] == ["var_best"]
+    assert learn["reference"] == str(ref)
+    # variable_order reflects the topological order used for learning.
+    assert len(learn["variable_order"]) == 5
+    assert set(learn["variable_order"]) == {"X", "Y", "Z", "U", "V"}
+
+
 # _meta.json written by single run contains convention metadata payload.
 def test_single_run_meta_json_content(tmp_path: Path) -> None:
     provider = DiscoveryActionProvider()
@@ -539,6 +704,10 @@ def test_single_run_meta_json_content(tmp_path: Path) -> None:
     ]
     assert isinstance(elapsed, float)
     assert elapsed >= 0.0
+    # variable_order lists the data variables in their original order.
+    assert saved["metadata"]["causaliq-discovery"]["learn_graph"][
+        "variable_order"
+    ] == ["X", "Y", "Z", "U", "V"]
 
 
 # .db cache output returns graph objects instead of output directories.

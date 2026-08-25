@@ -5,6 +5,8 @@ from causaliq_discovery.data_cache import (
     _cache_key,
     _parse_sample_size_value,
     clear_data_cache,
+    load_cached_data,
+    load_cached_reference,
     required_max_sample_size,
 )
 
@@ -96,3 +98,67 @@ def test_clear_data_cache_empties() -> None:
     _DATA_CACHE["k"] = object()  # type: ignore[assignment]
     clear_data_cache()
     assert _DATA_CACHE == {}
+
+
+# load_cached_reference reads the reference BN once per path.
+def test_load_cached_reference_reads_once(mocker) -> None:
+    fake_bn = object()
+    mock_read = mocker.patch(
+        "causaliq_discovery.data_cache.read_bn",
+        return_value=fake_bn,
+    )
+    clear_data_cache()
+    first = load_cached_reference("ref.xdsl")
+    second = load_cached_reference("ref.xdsl")
+    assert first is second
+    assert mock_read.call_count == 1
+
+
+# load_cached_reference keeps different paths independent.
+def test_load_cached_reference_separate_paths(mocker) -> None:
+    fake_bn = object()
+    mocker.patch(
+        "causaliq_discovery.data_cache.read_bn",
+        return_value=fake_bn,
+    )
+    clear_data_cache()
+    first = load_cached_reference("a.xdsl")
+    second = load_cached_reference("b.xdsl")
+    assert first is second  # same fake object from the mock
+    assert _DATA_CACHE == {}
+
+
+# load_cached_data reads ten times max size when row_sample active.
+def test_load_cached_data_row_sample_reads_ten_times(mocker) -> None:
+    fake_numpy = mocker.MagicMock()
+    fake_numpy.data.shape = (1000, 2)
+    captured = {}
+
+    def fake_read(data, variable_types, max_rows=None):
+        captured["max_rows"] = max_rows
+        return fake_numpy, {}
+
+    mocker.patch(
+        "causaliq_discovery.data_cache.read_data", side_effect=fake_read
+    )
+    clear_data_cache()
+    load_cached_data("data.csv", None, [50], None, randomise=["row_sample"])
+    assert captured["max_rows"] == 500
+
+
+# load_cached_data reads exactly max size without row_sample.
+def test_load_cached_data_plain_reads_max_size(mocker) -> None:
+    fake_numpy = mocker.MagicMock()
+    fake_numpy.data.shape = (100, 2)
+    captured = {}
+
+    def fake_read(data, variable_types, max_rows=None):
+        captured["max_rows"] = max_rows
+        return fake_numpy, {}
+
+    mocker.patch(
+        "causaliq_discovery.data_cache.read_data", side_effect=fake_read
+    )
+    clear_data_cache()
+    load_cached_data("data.csv", None, [50], None, randomise=None)
+    assert captured["max_rows"] == 50

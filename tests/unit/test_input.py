@@ -1,6 +1,7 @@
 """Unit tests for data input normalisation."""
 
 import warnings
+from typing import List, Optional
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -369,37 +370,86 @@ def test_apply_sampling_row_order_sets_n(cont_numpy: NumPy) -> None:
     assert cont_numpy.N == cont_numpy.data.shape[0]
 
 
-# row_subsample randomise selects N rows randomly.
-def test_apply_sampling_row_subsample_sets_n(
-    cont_numpy: NumPy,
-) -> None:
-    apply_sampling(cont_numpy, 2, ["row_subsample"], 1)
+# row_sample randomise selects N rows randomly.
+def test_apply_sampling_row_sample_sets_n(cont_numpy: NumPy) -> None:
+    apply_sampling(cont_numpy, 2, ["row_sample"], 1)
     assert cont_numpy.N == 2
 
 
-# column_order randomise calls randomise_order without error.
-def test_apply_sampling_column_order_randomises(
-    cont_numpy: NumPy,
-) -> None:
-    apply_sampling(cont_numpy, None, ["column_order"], 1)
+# var_order randomise calls randomise_order without error.
+def test_apply_sampling_var_order_randomises(cont_numpy: NumPy) -> None:
+    apply_sampling(cont_numpy, None, ["var_order"], 1)
     assert isinstance(cont_numpy.order, tuple)
     assert len(cont_numpy.order) == len(cont_numpy.nodes)
 
 
-# column_names randomise calls randomise_names without error.
-def test_apply_sampling_column_names_randomises(
+# var_names randomise calls randomise_names without error.
+def test_apply_sampling_var_names_randomises(cont_numpy: NumPy) -> None:
+    apply_sampling(cont_numpy, None, ["var_names"], 1)
+    assert isinstance(cont_numpy.nodes, tuple)
+    # External names are now different from the original nodes.
+    assert set(cont_numpy.ext_to_orig) != set(cont_numpy.nodes)
+
+
+# var_alpha sets the process order to alphabetic external names.
+def test_apply_sampling_var_alpha_sets_alphabetic_order() -> None:
+    df = pd.DataFrame({"B": [1.0, 2.0, 3.0], "A": [4.0, 5.0, 6.0]}).astype(
+        "float32"
+    )
+    data = NumPy.from_df(df, DatasetType.CONTINUOUS, keep_df=False)
+    apply_sampling(data, None, ["var_alpha"], None)
+    assert data.get_order() == ("A", "B")
+
+
+# var_best sets the process order to the supplied topological order.
+def test_apply_sampling_var_best_sets_topo_order(cont_numpy: NumPy) -> None:
+    apply_sampling(cont_numpy, None, ["var_best"], None, ("B", "A"))
+    assert cont_numpy.get_order() == ("B", "A")
+
+
+# var_worst sets the process order to the reversed topological order.
+def test_apply_sampling_var_worst_reverses_topo_order(
     cont_numpy: NumPy,
 ) -> None:
-    apply_sampling(cont_numpy, None, ["column_names"], 1)
-    assert isinstance(cont_numpy.nodes, tuple)
+    apply_sampling(cont_numpy, None, ["var_worst"], None, ("B", "A"))
+    assert cont_numpy.get_order() == ("A", "B")
 
 
-# All four randomise options together complete without error.
+# var_best with var_names maps the topo order through external names.
+def test_apply_sampling_var_best_with_var_names_maps_names(
+    cont_numpy: NumPy,
+) -> None:
+    apply_sampling(cont_numpy, None, ["var_best", "var_names"], 1, ("B", "A"))
+    expected = tuple(cont_numpy.orig_to_ext[n] for n in ("B", "A"))
+    assert cont_numpy.get_order() == expected
+
+
+# Names are randomised before variable order, matching legacy order.
+def test_apply_sampling_names_before_order(cont_numpy: NumPy) -> None:
+    calls: List[str] = []
+    orig_names = cont_numpy.randomise_names
+    orig_order = cont_numpy.randomise_order
+
+    def spy_names(seed: Optional[int]) -> None:
+        calls.append("names")
+        orig_names(seed)
+
+    def spy_order(seed: int) -> None:
+        calls.append("order")
+        orig_order(seed)
+
+    cont_numpy.randomise_names = spy_names  # type: ignore[method-assign]
+    cont_numpy.randomise_order = spy_order  # type: ignore[method-assign]
+    apply_sampling(cont_numpy, None, ["var_names", "var_order"], 1)
+    assert calls == ["names", "order"]
+
+
+# All randomise options together complete without error.
 def test_apply_sampling_all_options(cont_numpy: NumPy) -> None:
     apply_sampling(
         cont_numpy,
         2,
-        ["row_subsample", "column_order", "column_names"],
+        ["row_sample", "var_order", "var_names"],
         1,
     )
     assert cont_numpy.N == 2

@@ -37,11 +37,19 @@ class _MockData:
         sample: np.ndarray,
         nodes: Tuple[str, ...],
         dstype: str,
+        order: Optional[Tuple[int, ...]] = None,
     ) -> None:
         self.sample = sample
         self.nodes = nodes
         self.dstype = dstype
         self.N = sample.shape[0]
+        self.order = order if order is not None else tuple(range(len(nodes)))
+        self.ext_to_orig = {n: n for n in nodes}
+        self.orig_to_ext = {n: n for n in nodes}
+
+    def get_order(self) -> Tuple[str, ...]:
+        """Return external names in process order."""
+        return tuple(self.orig_to_ext[self.nodes[i]] for i in self.order)
 
 
 def _continuous_data(n_rows: int = 5) -> _MockData:
@@ -216,6 +224,19 @@ def test_convert_input_stores_nodes() -> None:
     data = _continuous_data()
     result = adapter.convert_input(data, None, None, None, None)
     assert result["nodes"] == ["A", "B"]
+
+
+# convert_input respects the data process order and external names.
+def test_convert_input_uses_process_order() -> None:
+    adapter = BnlearnAdapter()
+    rng = np.random.default_rng(3)
+    sample = rng.standard_normal((5, 2))
+    data = _MockData(sample, ("A", "B"), "continuous", order=(1, 0))
+    result = adapter.convert_input(data, None, None, None, None)
+    assert result["nodes"] == ["B", "A"]
+    # R code columns follow the process order.
+    body = result["r_data_code"]
+    assert body.index("`B`") < body.index("`A`")
 
 
 # convert_input stores number of rows.

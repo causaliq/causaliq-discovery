@@ -91,11 +91,11 @@ def test_csv_row_order_randomise_sets_n() -> None:
     assert numpy_data.N == total
 
 
-# CSV data with column_names randomise changes node names.
-def test_csv_column_names_randomise_changes_names() -> None:
+# CSV data with var_names randomise changes node names.
+def test_csv_var_names_randomise_changes_names() -> None:
     numpy_data, _ = normalise_data(CONTINUOUS_CSV, None)
     original_nodes = set(numpy_data.nodes)
-    apply_sampling(numpy_data, None, ["column_names"], 1)
+    apply_sampling(numpy_data, None, ["var_names"], 1)
     # Node names should now be randomised external names.
     assert isinstance(numpy_data.nodes, tuple)
     _ = original_nodes

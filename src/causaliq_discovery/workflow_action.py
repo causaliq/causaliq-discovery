@@ -89,6 +89,11 @@ from causaliq_core.utils import (  # noqa: E402
 
 from causaliq_discovery.data_cache import load_cached_data  # noqa: E402
 from causaliq_discovery.errors import LearningError  # noqa: E402
+from causaliq_discovery.params import (  # noqa: E402
+    validate_randomise,
+    validate_reference,
+    validate_seed,
+)
 
 
 def _build_output_dir(
@@ -315,6 +320,9 @@ def _build_action_metadata(
     output_seconds: float,
     status: str,
     error: Optional[str] = None,
+    randomise: Optional[List[str]] = None,
+    seed: Optional[int] = None,
+    reference: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build learn_graph metadata payload for workflow outputs.
 
@@ -341,6 +349,9 @@ def _build_action_metadata(
         status: Learn status, one of ``ok``, ``timeout``, ``memout``,
             ``input_error`` or ``internal_error``.
         error: Failure explanation for failed runs.
+        randomise: Randomisation options applied to the run.
+        seed: Randomisation seed used for the run.
+        reference: Reference network path used for the run.
 
     Returns:
         Metadata dict for the learn_graph element of ``_meta.json``.
@@ -348,10 +359,15 @@ def _build_action_metadata(
     if result_metadata is not None:
         resolved_variant = result_metadata.get("variant", variant)
         hyperparameters = result_metadata.get("hyperparameters", {})
+        randomise = result_metadata.get("randomise", randomise)
+        seed = result_metadata.get("seed", seed)
+        reference = result_metadata.get("reference", reference)
+        variable_order = result_metadata.get("variable_order")
     else:
         resolved_variant, hyperparameters = _resolve_run_parameters(
             algorithm, variant, user_hyperparameters
         )
+        variable_order = None
     meta: Dict[str, Any] = {
         "algorithm": algorithm,
         "variant": resolved_variant,
@@ -367,6 +383,14 @@ def _build_action_metadata(
         "algorithm_seconds": algorithm_seconds,
         "output_seconds": output_seconds,
     }
+    if randomise:
+        meta["randomise"] = list(randomise)
+    if seed is not None:
+        meta["seed"] = seed
+    if reference is not None:
+        meta["reference"] = reference
+    if variable_order:
+        meta["variable_order"] = list(variable_order)
     if error is not None:
         meta["error"] = error
     return meta
@@ -578,6 +602,34 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             required=False,
             type_hint="dict[str, VariableType]",
         ),
+        "randomise": ActionInput(
+            name="randomise",
+            description=(
+                "List of randomisation options to apply to the input "
+                "data: var_order, var_alpha, var_best, var_worst, "
+                "var_names, row_order, row_sample."
+            ),
+            required=False,
+            type_hint="list[str]",
+        ),
+        "seed": ActionInput(
+            name="seed",
+            description=(
+                "Deterministic randomisation seed (0-100). Required "
+                "when a randomising option is specified."
+            ),
+            required=False,
+            type_hint="int",
+        ),
+        "reference": ActionInput(
+            name="reference",
+            description=(
+                "Path to a ground-truth reference network (.xdsl or "
+                ".dsc file). Required for var_best/var_worst."
+            ),
+            required=False,
+            type_hint="str",
+        ),
     }
 
     # Output specifications
@@ -627,7 +679,11 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                         "'sample_size' must be a single value. "
                         "Use workflow matrix expansion for multiple runs."
                     )
-        except ValueError as e:
+            randomise = parameters.get("randomise")
+            validate_randomise(randomise)
+            validate_seed(parameters.get("seed"), randomise)
+            validate_reference(parameters.get("reference"), randomise)
+        except (TypeError, ValueError) as e:
             raise ActionValidationError(str(e))
 
     def _dry_run_result(
@@ -758,6 +814,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             parameters.get("trace", False), context=context
         )
         variable_types = parameters.get("variable_types")
+        randomise = parameters.get("randomise")
+        seed = parameters.get("seed")
+        reference = parameters.get("reference")
 
         sizes = _parse_sample_sizes(parameters.get("sample_size"))
         has_workflow_cache = bool(
@@ -781,7 +840,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         data_load_start = perf_counter()
         try:
             numpy_data = load_cached_data(
-                input_path, variable_types, sizes, context
+                input_path, variable_types, sizes, context, randomise
             )
         except Exception as exc:
             return self._all_runs_failed(
@@ -796,6 +855,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 failure=classify_error(exc),
                 total_start=total_start,
                 data_load_start=data_load_start,
+                randomise=randomise,
+                seed=seed,
+                reference=reference,
             )
         data_load_seconds = perf_counter() - data_load_start
 
@@ -834,6 +896,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     trace=include_trace,
                     variant=variant,
                     sample_size=n,
+                    randomise=randomise,
+                    seed=seed,
+                    reference=reference,
                 )
             except Exception as exc:
                 failure = classify_error(exc)
@@ -857,6 +922,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     output_seconds=0.0,
                     status=failure.status,
                     error=str(failure),
+                    randomise=randomise,
+                    seed=seed,
+                    reference=reference,
                 )
 
                 output_start = perf_counter()
@@ -901,6 +969,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 algorithm_seconds=round(algorithm_seconds, 6),
                 output_seconds=0.0,
                 status=STATUS_OK,
+                randomise=randomise,
+                seed=seed,
+                reference=reference,
             )
 
             if use_cache_output:
@@ -985,6 +1056,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         failure: LearningError,
         total_start: float,
         data_load_start: float,
+        randomise: Optional[List[str]] = None,
+        seed: Optional[int] = None,
+        reference: Optional[str] = None,
     ) -> "ActionResult":
         """Record a shared input failure for every matrix run.
 
@@ -1044,6 +1118,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 output_seconds=0.0,
                 status=failure.status,
                 error=str(failure),
+                randomise=randomise,
+                seed=seed,
+                reference=reference,
             )
 
             if use_cache_output:

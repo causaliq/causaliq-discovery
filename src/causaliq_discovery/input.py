@@ -346,18 +346,26 @@ def apply_sampling(
     sample_size: Optional[int],
     randomise: Optional[List[str]],
     seed: Optional[int],
+    topo_order: Optional[Tuple[str, ...]] = None,
 ) -> None:
     """Apply sampling and randomisation to a NumPy data object.
 
-    Mutates ``data`` in-place via set_N, randomise_order, and
-    randomise_names as appropriate.
+    Mutates ``data`` in-place via set_N, randomise_names, and
+    set_order/randomise_order.  Randomisations are applied in the
+    same order as the legacy experiment framework (rows, then names,
+    then variable order) so that results replicate legacy series.
 
     Args:
         data: NumPy data object.
         sample_size: Number of rows to use, or None for all rows.
-        randomise: List of randomisation options, or None.
-        seed: Deterministic seed (0-100), required when randomise
-            is active.
+        randomise: List of randomisation options, or None.  Supported
+            values: ``var_order``, ``var_alpha``, ``var_best``,
+            ``var_worst``, ``var_names``, ``row_order`` and
+            ``row_sample``.
+        seed: Deterministic seed (0-100), required when a randomising
+            option is active.
+        topo_order: Reference-network topological order in original
+            node names, used by ``var_best`` and ``var_worst``.
 
     Raises:
         ValueError: If sample_size exceeds the available rows.
@@ -372,16 +380,31 @@ def apply_sampling(
     n = sample_size if sample_size is not None else total_rows
     active = randomise or []
 
-    if "row_subsample" in active:
+    # Rows first, matching the legacy experiment order.
+    if "row_sample" in active:
         data.set_N(n, seed=seed, random_selection=True)
     elif "row_order" in active:
         data.set_N(n, seed=seed)
     else:
         data.set_N(n)
 
-    if "column_order" in active:
+    # Variable names second.
+    if "var_names" in active:
+        assert seed is not None  # guaranteed by validate_seed
+        data.randomise_names(seed)
+
+    # Variable order last.
+    if "var_order" in active:
         assert seed is not None  # guaranteed by validate_seed
         data.randomise_order(seed)
-
-    if "column_names" in active:
-        data.randomise_names(seed)
+    elif (
+        "var_alpha" in active or "var_best" in active or "var_worst" in active
+    ):
+        if "var_alpha" in active:
+            order = tuple(sorted(data.ext_to_orig))
+        else:
+            assert topo_order is not None
+            order = tuple(data.orig_to_ext[n] for n in topo_order)
+            if "var_worst" in active:
+                order = tuple(reversed(order))
+        data.set_order(order)

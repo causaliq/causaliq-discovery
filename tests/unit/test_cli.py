@@ -132,6 +132,48 @@ def test_cli_valid_hyperparameter_is_accepted(runner):
     assert result.exit_code == 1
 
 
+# learn --help lists all supported randomise options.
+def test_cli_learn_help_lists_randomise_options(runner):
+    result = runner.invoke(cli, ["learn", "--help"])
+    assert result.exit_code == 0
+    assert "--reference" in result.output
+    for option in [
+        "var_order",
+        "var_alpha",
+        "var_best",
+        "var_worst",
+        "var_names",
+        "row_order",
+        "row_sample",
+    ]:
+        assert option in result.output
+
+
+# learn forwards randomise and reference to learn_graph.
+def test_cli_reference_forwarded_to_learn_graph(runner, mocker):
+    mock_learn = mocker.patch("causaliq_discovery.cli.learn_graph")
+    result = runner.invoke(
+        cli,
+        [
+            "learn",
+            "-i",
+            "data.csv",
+            "-a",
+            "hc",
+            "-o",
+            "out",
+            "-r",
+            "var_best",
+            "-R",
+            "ref.xdsl",
+        ],
+    )
+    assert result.exit_code == 0
+    _, kwargs = mock_learn.call_args
+    assert kwargs["randomise"] == ["var_best"]
+    assert kwargs["reference"] == "ref.xdsl"
+
+
 # list-algorithms command shows name, class and description for each algo.
 def test_list_algorithms_cmd(runner):
     result = runner.invoke(cli, ["list-algorithms"])
