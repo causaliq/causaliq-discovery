@@ -23,6 +23,7 @@ def learn_graph(
     randomise: Optional[List[str]] = None,
     seed: Optional[int] = None,
     reference: Optional[str] = None,
+    timeout: Union[float, int] = 60,
 ) -> DiscoveryResult
 ```
 
@@ -42,6 +43,7 @@ def learn_graph(
 | `randomise` | `list \| None` | `None` | Randomisation options: `"var_order"`, `"var_alpha"`, `"var_best"`, `"var_worst"`, `"var_names"`, `"row_order"`, `"row_sample"`.  Only one of `var_order`, `var_alpha`, `var_best`, `var_worst` may be specified; `var_best`/`var_worst` require `reference`.  Randomising options require `seed`. |
 | `seed` | `int \| None` | `None` | Deterministic randomisation seed (0–100).  Required when a randomising option is specified. |
 | `reference` | `str \| None` | `None` | Path to a ground-truth reference network (`.xdsl` or `.dsc` file).  Required when `var_best` or `var_worst` is specified. |
+| `timeout` | `float \| int` | `60` | Maximum allowed execution time for structure learning in minutes, as a positive float or int.  Applies to all structure learning packages. |
 
 ### Returns
 

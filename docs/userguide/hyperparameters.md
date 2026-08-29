@@ -7,19 +7,11 @@ This table below describes the hyperparameters that are supported by one or more
 | [alpha](#alpha)                   | constraint | p-value threshold used in Conditional Independence tests |
 | [ci_test](#ci_test)               | constraint | Conditional Independence tests used in constraint-based learning |
 | [iss](#iss)                       | constraint | Imaginary Sample Size used to weight priors in Bayesian scores |
-| [max_elapsed](#max_elapsed)       | general    | Maximum elapsed time allowed in seconds |
 | [max_iterations](#max_iterations) | score      | Limit on the number of iterations in score-based learning
 | [no_increase](#no_increase)       | score      | Number of iterations allowed where the score does not increase |
 | [penalty_weight](#penalty_weight) | score      | Weighting assigned to the penalty component of scores such as AIC and BIC |
 | [score](#score)                   | score      | Objective score used in score-based learning |
 | [tabulist_len](#tabulist_len)     | score      | Length of the Tabu list |
-
-
-## General hyperparameters
-
-### max_elapsed
-
-Maximum allowed elapsed execution time in seconds specified as a positive integer.
 
 
 ## Score-based hyperparameters

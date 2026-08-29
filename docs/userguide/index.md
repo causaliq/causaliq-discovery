@@ -98,6 +98,7 @@ the CLI, Python and Workflow Action interfaces. Parameter names are the same acr
 | [`knowledge`](#knowledge-parameter)             | `-k`     | No          | Knowledge which guides or constrains the learning process, for instance required or forbidden arcs |
 | [`randomise`](#randomise-parameter)             | `-r`     | No          | Properties of the dataset to randomise: column names, column order, row order and/or row selection |
 | [`seed`](#seed-parameter)                       | `-S`     | No          | Randomise seed number |
+| [`timeout`](#timeout-parameter)                 | `-t`     | No          | Maximum allowed execution time for structure learning in minutes |
 
 
 ### `input` parameter
@@ -177,7 +178,6 @@ Trace formats for other algorithm types (constraint-based, hybrid) will be defin
 | Hyperparameter name        | Description                         |
 |----------------------------|-------------------------------------|
 | `max_iterations`           | A limit on the number of iterations |
-| `max_elapsed`              | A limit on the execution time       |
 | `score`                    | Score being used for score-based algorithms, e.g., `bdeu` |
 | `iss`                      | The ISS hyperparameter for the BDeu score |
 | `alpha`                    | The p-value used in constraint-based algorithms |
@@ -236,3 +236,9 @@ This parameter defines the randomisation seed when a randomising `randomise` opt
 ### `reference` parameter
 
 This optional parameter is a path to a ground-truth reference network in `.xdsl` or `.dsc` format. It is required when the `var_best` or `var_worst` randomisation option is specified, and is used to order the variables in the optimal (topological) or worst (anti-topological) order for the learning run.
+
+### `timeout` parameter
+
+This optional parameter specifies the maximum allowed execution time for structure learning in minutes, as a positive float or int. It applies to all current and future structure learning packages (bnlearn, causaliq_hc and tetrad). The default value is 60 minutes.
+
+If the time limit is exceeded, the run is stopped and reported with the `timeout` status in the output metadata (`status` field of the `_meta.json` metadata file).

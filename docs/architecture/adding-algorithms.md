@@ -84,7 +84,14 @@ class MyPkgAdapter(PackageAdapter):
     ) -> ...:
         ...
 
-    def run(self, converted_input: ...) -> ...:
+    def run(
+        self,
+        converted_input: ...,
+        algorithm: str,
+        mapped_hyperparameters: ...,
+        trace: bool = False,
+        timeout: Optional[int] = None,
+    ) -> ...:
         ...
 
     def convert_output(self, raw_output: ...) -> "nx.DiGraph":
@@ -96,6 +103,15 @@ classifies package exceptions into the standard `LearningError`
 statuses (`input_error`, `timeout`, `memout`, `internal_error`).  Override
 `translate_error()` when the package produces distinctive error
 messages that need their own mapping.
+
+Every adapter **must** accept the `timeout` argument (maximum allowed
+execution time in seconds) and honour it: when structure learning exceeds
+the limit the adapter must raise an exception that `translate_error` maps
+to the `timeout` status.  Subprocess-based packages typically pass the
+timeout to the subprocess runner (raising `subprocess.TimeoutExpired` on
+expiry); in-process algorithms must enforce the deadline cooperatively,
+for example by checking elapsed time in the main search loop and raising
+`LearningTimeoutError`.
 
 ### 3. Register the adapter
 
