@@ -255,12 +255,6 @@ def test_hyperparameter_spec_stores_fields():
     assert spec.default_display is None
 
 
-# max_elapsed HyperparameterSpec has default_display set to 'No limit'.
-def test_max_elapsed_has_no_limit_default_display():
-    hp = AlgorithmRegistry.get_hyperparameter_spec("max_elapsed")
-    assert hp.default_display == "No limit"
-
-
 # max_iterations HyperparameterSpec has default_display set to 'No limit'.
 def test_max_iterations_has_no_limit_default_display():
     hp = AlgorithmRegistry.get_hyperparameter_spec("max_iterations")

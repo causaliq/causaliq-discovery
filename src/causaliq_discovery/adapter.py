@@ -57,8 +57,16 @@ class PackageAdapter(ABC):
         algorithm: str,
         mapped_hyperparameters: Dict[str, Any],
         trace: bool = False,
+        timeout: Optional[int] = None,
     ) -> Any:
         """Run the structure learning algorithm.
+
+        Every adapter must honour the ``timeout`` argument: when the
+        structure learning exceeds the limit the adapter must raise
+        (or cause to be raised) an exception that ``translate_error``
+        maps to the ``timeout`` status, e.g. ``subprocess.TimeoutExpired``
+        for subprocess-based packages or ``LearningTimeoutError`` for
+        in-process algorithms.
 
         Args:
             converted_data: Package-specific data from convert_input.
@@ -68,6 +76,8 @@ class PackageAdapter(ABC):
                 by AlgorithmRegistry.
             trace: If True, the raw output must include trace data
                 that build_trace() can convert.
+            timeout: Maximum allowed execution time in seconds, or
+                None when no limit has been requested.
 
         Returns:
             Raw package output (format is package-specific).

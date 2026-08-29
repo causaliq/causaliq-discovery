@@ -284,13 +284,6 @@ HYPERPARAMETER_SPECS: Dict[str, HyperparameterSpec] = {
             "Imaginary Sample Size weighting the prior in " "Bayesian scores."
         ),
     ),
-    "max_elapsed": HyperparameterSpec(
-        name="max_elapsed",
-        category="general",
-        type="int",
-        description="Maximum allowed execution time in seconds.",
-        default_display="No limit",
-    ),
     "max_iterations": HyperparameterSpec(
         name="max_iterations",
         category="score",
@@ -345,7 +338,6 @@ _SCORE_HYPERPARAMETERS: Set[str] = {
     "iss",
     "max_iterations",
     "penalty_weight",
-    "max_elapsed",
 }
 _SCORE_DEFAULTS: Dict[str, Any] = {
     "score": "bic",
@@ -364,7 +356,6 @@ _TABU_DEFAULTS: Dict[str, Any] = {
 _CONSTRAINT_HYPERPARAMETERS: Set[str] = {
     "alpha",
     "ci_test",
-    "max_elapsed",
 }
 _CONSTRAINT_DEFAULTS: Dict[str, Any] = {
     "alpha": 0.05,
@@ -391,7 +382,6 @@ for _spec in [
             "score",
             "iss",
             "penalty_weight",
-            "max_elapsed",
         },
         hyperparameter_defaults={
             "score": "bic",

@@ -12,7 +12,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import StringIO
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 # Check if workflow is available at runtime
 WORKFLOW_AVAILABLE = False
@@ -90,9 +98,11 @@ from causaliq_core.utils import (  # noqa: E402
 from causaliq_discovery.data_cache import load_cached_data  # noqa: E402
 from causaliq_discovery.errors import LearningError  # noqa: E402
 from causaliq_discovery.params import (  # noqa: E402
+    DEFAULT_TIMEOUT_MINUTES,
     validate_randomise,
     validate_reference,
     validate_seed,
+    validate_timeout,
 )
 
 
@@ -323,6 +333,7 @@ def _build_action_metadata(
     randomise: Optional[List[str]] = None,
     seed: Optional[int] = None,
     reference: Optional[str] = None,
+    timeout: Union[float, int] = DEFAULT_TIMEOUT_MINUTES,
 ) -> Dict[str, Any]:
     """Build learn_graph metadata payload for workflow outputs.
 
@@ -352,6 +363,7 @@ def _build_action_metadata(
         randomise: Randomisation options applied to the run.
         seed: Randomisation seed used for the run.
         reference: Reference network path used for the run.
+        timeout: Structure learning timeout in minutes.
 
     Returns:
         Metadata dict for the learn_graph element of ``_meta.json``.
@@ -362,6 +374,7 @@ def _build_action_metadata(
         randomise = result_metadata.get("randomise", randomise)
         seed = result_metadata.get("seed", seed)
         reference = result_metadata.get("reference", reference)
+        timeout = result_metadata.get("timeout", timeout)
         variable_order = result_metadata.get("variable_order")
     else:
         resolved_variant, hyperparameters = _resolve_run_parameters(
@@ -378,6 +391,7 @@ def _build_action_metadata(
         "num_nodes": graph_num_nodes,
         "num_edges": graph_num_edges,
         "trace": include_trace,
+        "timeout": timeout,
         "status": status,
         "elapsed_seconds": elapsed_seconds,
         "algorithm_seconds": algorithm_seconds,
@@ -630,6 +644,17 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             required=False,
             type_hint="str",
         ),
+        "timeout": ActionInput(
+            name="timeout",
+            description=(
+                "Maximum allowed execution time for structure learning "
+                "in minutes, as a positive float or int. Applies to "
+                "all structure learning packages. Defaults to 60."
+            ),
+            required=False,
+            default=DEFAULT_TIMEOUT_MINUTES,
+            type_hint="float or int",
+        ),
     }
 
     # Output specifications
@@ -683,6 +708,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             validate_randomise(randomise)
             validate_seed(parameters.get("seed"), randomise)
             validate_reference(parameters.get("reference"), randomise)
+            validate_timeout(
+                parameters.get("timeout", DEFAULT_TIMEOUT_MINUTES)
+            )
         except (TypeError, ValueError) as e:
             raise ActionValidationError(str(e))
 
@@ -817,6 +845,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         randomise = parameters.get("randomise")
         seed = parameters.get("seed")
         reference = parameters.get("reference")
+        timeout = parameters.get("timeout", DEFAULT_TIMEOUT_MINUTES)
 
         sizes = _parse_sample_sizes(parameters.get("sample_size"))
         has_workflow_cache = bool(
@@ -858,6 +887,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 randomise=randomise,
                 seed=seed,
                 reference=reference,
+                timeout=timeout,
             )
         data_load_seconds = perf_counter() - data_load_start
 
@@ -899,6 +929,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     randomise=randomise,
                     seed=seed,
                     reference=reference,
+                    timeout=timeout,
                 )
             except Exception as exc:
                 failure = classify_error(exc)
@@ -925,6 +956,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     randomise=randomise,
                     seed=seed,
                     reference=reference,
+                    timeout=timeout,
                 )
 
                 output_start = perf_counter()
@@ -972,6 +1004,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 randomise=randomise,
                 seed=seed,
                 reference=reference,
+                timeout=timeout,
             )
 
             if use_cache_output:
@@ -1059,6 +1092,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         randomise: Optional[List[str]] = None,
         seed: Optional[int] = None,
         reference: Optional[str] = None,
+        timeout: Union[float, int] = DEFAULT_TIMEOUT_MINUTES,
     ) -> "ActionResult":
         """Record a shared input failure for every matrix run.
 
@@ -1079,6 +1113,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             failure: Classified failure shared by all runs.
             total_start: Wall-clock start time of the action.
             data_load_start: Wall-clock start time of data loading.
+            timeout: Structure learning timeout in minutes.
 
         Returns:
             Tuple of ("error", metadata, []).
@@ -1121,6 +1156,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 randomise=randomise,
                 seed=seed,
                 reference=reference,
+                timeout=timeout,
             )
 
             if use_cache_output:

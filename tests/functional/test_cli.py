@@ -152,6 +152,29 @@ def test_cli_variant_flag_forwarded_to_learn_graph(tmp_path, mocker) -> None:
     assert mock_learn.call_args.kwargs["variant"] == "bnlearn"
 
 
+# --timeout flag is forwarded as timeout kwarg to learn_graph.
+def test_cli_timeout_flag_forwarded_to_learn_graph(tmp_path, mocker) -> None:
+    mock_learn = mocker.patch("causaliq_discovery.cli.learn_graph")
+    csv_path = tmp_path / "data.csv"
+    pd.DataFrame({"A": [1, 2], "B": [3, 4]}).to_csv(csv_path, index=False)
+    runner = CliRunner()
+    runner.invoke(
+        cli,
+        [
+            "learn",
+            "-i",
+            str(csv_path),
+            "-a",
+            "hc",
+            "-o",
+            "out",
+            "-t",
+            "2.5",
+        ],
+    )
+    assert mock_learn.call_args.kwargs["timeout"] == 2.5
+
+
 # cqdisc list-algorithms lists all algorithms via subprocess.
 def test_list_algorithms_via_subprocess() -> None:
     script = (

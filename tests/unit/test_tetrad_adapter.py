@@ -300,8 +300,9 @@ def test_run_executes_java_and_parses_output(
     raw = adapter.run(
         converted_data=converted,
         algorithm="fges",
-        mapped_hyperparameters={"score": "bic", "max_elapsed": 42},
+        mapped_hyperparameters={"score": "bic"},
         trace=False,
+        timeout=42,
     )
 
     assert captured["jar_path"] == str(jar)

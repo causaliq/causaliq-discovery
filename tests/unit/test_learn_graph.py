@@ -1,6 +1,7 @@
 """Unit tests for learn_graph parameter validation."""
 
 import subprocess
+from typing import Any, Dict, List
 
 import pandas as pd
 import pytest
@@ -575,6 +576,61 @@ def test_variable_order_present_without_randomise(df, mocker):
     )
     result = learn_graph(data=df, algorithm="tabu-stable")
     assert result.metadata["variable_order"] == ["A", "B"]
+
+
+# timeout of an invalid type raises TypeError.
+@pytest.mark.parametrize("bad_timeout", ["5", True, None, [], {}])
+def test_timeout_invalid_type_raises_type_error(df, bad_timeout):
+    with pytest.raises(TypeError):
+        learn_graph(data=df, algorithm="hc", timeout=bad_timeout)
+
+
+# timeout of zero or a negative value raises ValueError.
+@pytest.mark.parametrize("bad_timeout", [0, 0.0, -1, -0.5])
+def test_timeout_zero_or_negative_raises_value_error(df, bad_timeout):
+    with pytest.raises(ValueError):
+        learn_graph(data=df, algorithm="hc", timeout=bad_timeout)
+
+
+# A float timeout is accepted and recorded in the result metadata.
+def test_timeout_float_accepted_and_recorded(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        return_value=mocker.MagicMock(),
+    )
+    result = learn_graph(data=df, algorithm="tabu-stable", timeout=2.5)
+    assert result.metadata["timeout"] == 2.5
+
+
+# The default timeout of 60 minutes is recorded when none is given.
+def test_timeout_default_is_60(df, mocker):
+    mocker.patch.object(
+        AlgorithmRegistry,
+        "get_adapter",
+        return_value=mocker.MagicMock(),
+    )
+    result = learn_graph(data=df, algorithm="tabu-stable")
+    assert result.metadata["timeout"] == 60
+
+
+# learn_graph converts minutes to seconds and forwards timeout to run().
+def test_timeout_converted_to_seconds_and_passed_to_adapter(df, mocker):
+    captured: List[Dict[str, Any]] = []
+
+    class CaptureAdapter(CausalIQHCAdapter):
+        def run(self, *args, **kwargs):
+            captured.append(kwargs)
+            return (DAG(["A", "B"], [("A", "->", "B")]), None)
+
+        def convert_output(self, raw_output):
+            return raw_output[0]
+
+    mocker.patch.object(
+        AlgorithmRegistry, "get_adapter", return_value=CaptureAdapter
+    )
+    learn_graph(data=df, algorithm="tabu-stable", timeout=2.5)
+    assert captured[0]["timeout"] == 150
 
 
 # learn_graph returns DiscoveryResult when adapter is available.

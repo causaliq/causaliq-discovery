@@ -238,6 +238,62 @@ def test_build_trace_score_rounded_to_6dp():
 
 
 # ---------------------------------------------------------------------------
+# run timeout forwarding
+# ---------------------------------------------------------------------------
+
+
+class _MockDiscreteData:
+    """Minimal stand-in for a CausalIQ Data object."""
+
+    dstype = "discrete"
+
+
+# run forwards the timeout (seconds) to hc() as max_elapsed.
+def test_run_passes_timeout_as_max_elapsed(mocker: Any) -> None:
+    captured: Dict[str, Any] = {}
+
+    def _fake_hc(
+        data, params=None, knowledge=False, context=None, init_cache=True
+    ):
+        captured["params"] = params
+        return (None, None)
+
+    mocker.patch(
+        "causaliq_discovery.algorithms.causaliq_hc.hc", side_effect=_fake_hc
+    )
+    adapter = CausalIQHCAdapter()
+    adapter.run(
+        converted_data=_MockDiscreteData(),
+        algorithm="hc",
+        mapped_hyperparameters={"score": "bic"},
+        timeout=30,
+    )
+    assert captured["params"]["max_elapsed"] == 30
+
+
+# run omits max_elapsed when no timeout is given.
+def test_run_omits_max_elapsed_without_timeout(mocker: Any) -> None:
+    captured: Dict[str, Any] = {}
+
+    def _fake_hc(
+        data, params=None, knowledge=False, context=None, init_cache=True
+    ):
+        captured["params"] = params
+        return (None, None)
+
+    mocker.patch(
+        "causaliq_discovery.algorithms.causaliq_hc.hc", side_effect=_fake_hc
+    )
+    adapter = CausalIQHCAdapter()
+    adapter.run(
+        converted_data=_MockDiscreteData(),
+        algorithm="hc",
+        mapped_hyperparameters={"score": "bic"},
+    )
+    assert "max_elapsed" not in captured["params"]
+
+
+# ---------------------------------------------------------------------------
 # translate_error (default PackageAdapter implementation)
 # ---------------------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 # Class which undertakes hill-climbing search
 
 from copy import deepcopy
-from time import asctime, localtime
+from time import asctime, localtime, monotonic
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from causaliq_analysis.graph import GraphAction, GraphActionDetail
@@ -11,6 +11,7 @@ from causaliq_core.utils import EnumWithAttrs, values_same
 from causaliq_data.pandas import Pandas
 from causaliq_data.score import node_score
 
+from causaliq_discovery.errors import LearningTimeoutError
 from causaliq_discovery.learn.dagchange import BestDAGChanges, DAGChange
 from causaliq_discovery.learn.knowledge import Knowledge
 from causaliq_discovery.learn.tabulist import TabuList
@@ -97,6 +98,12 @@ class HCWorker:
         else:
             self.params["noinc"] = 0
 
+        # Capture the execution deadline so run() can enforce the
+        # max_elapsed timeout requested by learn_graph.
+
+        self.max_elapsed: Optional[float] = params.get("max_elapsed")
+        self.start: float = monotonic()
+
         #   Order of edges in deltas defines processing order in algorithm and
         #   it is derived from the ordered specified in the Data object
 
@@ -151,6 +158,16 @@ class HCWorker:
 
             self.best = BestDAGChanges()  # initialise best change
             self.iter += 1
+
+            # Enforce the max_elapsed timeout if one was requested.
+
+            if (
+                self.max_elapsed is not None
+                and monotonic() - self.start > self.max_elapsed
+            ):
+                raise LearningTimeoutError(
+                    "hc() timed out after " f"{self.max_elapsed} seconds."
+                )
 
             # Find two highest scoring arc changes consistent with knowledge
 
@@ -294,6 +311,11 @@ class HCWorker:
         _clone.num_noinc = self.num_noinc
         _clone.best_parents_score = self.best_parents_score
         _clone.paused = self.paused
+
+        # Share the timeout deadline so clones keep the same overall limit.
+
+        _clone.max_elapsed = self.max_elapsed
+        _clone.start = self.start
 
         # use deep copies for other variables as these
         # will be different as each clone runs

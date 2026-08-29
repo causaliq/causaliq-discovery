@@ -1,4 +1,4 @@
-"""Unit tests for BnlearnAdapter."""
+﻿"""Unit tests for BnlearnAdapter."""
 
 import math
 import subprocess
@@ -309,7 +309,7 @@ def test_run_applies_gaussian_suffix_to_bic_for_continuous(
 ) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -328,7 +328,7 @@ def test_run_applies_gaussian_suffix_to_mi_for_continuous(
 ) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -349,7 +349,7 @@ def test_run_applies_gaussian_suffix_to_mi_for_continuous(
 def test_run_no_gaussian_suffix_for_categorical(mocker: Any) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -371,7 +371,7 @@ def test_run_no_gaussian_suffix_for_categorical(mocker: Any) -> None:
 def test_run_translates_bdeu_to_bde(mocker: Any) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -393,7 +393,7 @@ def test_run_translates_bdeu_to_bde(mocker: Any) -> None:
 def test_run_transforms_k_for_discrete_bic(mocker: Any) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -417,7 +417,7 @@ def test_run_transforms_k_for_discrete_bic(mocker: Any) -> None:
 def test_run_does_not_transform_k_for_bic_g(mocker: Any) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -436,12 +436,13 @@ def test_run_does_not_transform_k_for_bic_g(mocker: Any) -> None:
     assert "k = 2.0" in captured["script"]
 
 
-# run removes max_elapsed from params before building the script.
-def test_run_removes_max_elapsed(mocker: Any) -> None:
-    captured: Dict[str, str] = {}
+# run passes the timeout (seconds) through to run_r_script.
+def test_run_passes_timeout_to_run_r_script(mocker: Any) -> None:
+    captured: Dict[str, Any] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
+        captured["timeout"] = timeout
         return "---ARCS---\n"
 
     mocker.patch(
@@ -452,16 +453,17 @@ def test_run_removes_max_elapsed(mocker: Any) -> None:
     adapter.run(
         _make_converted(),
         "hc",
-        {"score": "bic", "max_elapsed": 60},
+        {"score": "bic"},
+        timeout=3600,
     )
-    assert "max_elapsed" not in captured["script"]
+    assert captured["timeout"] == 3600
 
 
 # run includes debug = TRUE in script when trace=True.
 def test_run_includes_debug_when_trace(mocker: Any) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -478,7 +480,7 @@ def test_run_includes_debug_when_trace(mocker: Any) -> None:
 def test_run_no_debug_when_trace_false(mocker: Any) -> None:
     captured: Dict[str, str] = {}
 
-    def _capture(script: str) -> str:
+    def _capture(script: str, timeout: Optional[int] = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 

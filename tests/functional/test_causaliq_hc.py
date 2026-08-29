@@ -31,7 +31,7 @@ def test_adapter_convert_output_extracts_dag_ok():
 def test_adapter_run_continuous_bic_score_ok():
     data, _ = normalise_data(_CONTINUOUS_CSV, None)
     adapter = CausalIQHCAdapter()
-    dag, _ = adapter.run(data, "hc", {"score": "bic", "max_elapsed": 60})
+    dag, _ = adapter.run(data, "hc", {"score": "bic"}, timeout=60)
     assert dag is not None
 
 

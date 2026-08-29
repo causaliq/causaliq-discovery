@@ -1,5 +1,6 @@
 """causaliq-discovery: Causal graph discovery from data."""
 
+import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -7,7 +8,7 @@ import pandas as pd
 from causaliq_discovery.data_cache import load_cached_reference
 from causaliq_discovery.errors import LearningError
 from causaliq_discovery.input import apply_sampling, normalise_data
-from causaliq_discovery.params import validate_all
+from causaliq_discovery.params import DEFAULT_TIMEOUT_MINUTES, validate_all
 from causaliq_discovery.registry import AlgorithmRegistry
 from causaliq_discovery.result import DiscoveryResult
 from causaliq_discovery.variable_type import VariableType
@@ -54,6 +55,7 @@ def learn_graph(
     randomise: Optional[List[str]] = None,
     seed: Optional[int] = None,
     reference: Optional[str] = None,
+    timeout: Union[float, int] = DEFAULT_TIMEOUT_MINUTES,
 ) -> DiscoveryResult:
     """Learn a causal graph from data.
 
@@ -95,6 +97,10 @@ def learn_graph(
         reference: Path to a ground-truth reference network
             (``.xdsl`` or ``.dsc`` file).  Required when ``var_best``
             or ``var_worst`` is specified.
+        timeout: Maximum allowed execution time for structure
+            learning in minutes, as a positive float or int.  Applies
+            to all structure learning packages.  Defaults to 60
+            minutes.
 
     Returns:
         DiscoveryResult containing the learnt graph, metadata, and
@@ -121,6 +127,7 @@ def learn_graph(
         randomise=randomise,
         seed=seed,
         reference=reference,
+        timeout=timeout,
     )
 
     # Validate algorithm and variant against registry.
@@ -184,13 +191,17 @@ def learn_graph(
         converted = adapter.convert_input(
             numpy_data, resolved_types, sample_size, randomise, seed
         )
-        raw_output = adapter.run(converted, algorithm, mapped_hp, trace)
+        timeout_seconds = int(math.ceil(timeout * 60))
+        raw_output = adapter.run(
+            converted, algorithm, mapped_hp, trace, timeout=timeout_seconds
+        )
         graph = adapter.convert_output(raw_output)
 
         metadata: Dict[str, Any] = {
             "algorithm": algorithm,
             "variant": spec.variant,
             "hyperparameters": effective_hp,
+            "timeout": timeout,
         }
         if randomise:
             metadata["randomise"] = list(randomise)

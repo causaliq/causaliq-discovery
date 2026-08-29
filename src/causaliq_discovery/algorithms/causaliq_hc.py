@@ -61,6 +61,7 @@ class CausalIQHCAdapter(PackageAdapter):
         algorithm: str,
         mapped_hyperparameters: Dict[str, Any],
         trace: bool = False,
+        timeout: Optional[int] = None,
     ) -> Any:
         """Run hc() with parameters appropriate for the algorithm.
 
@@ -72,7 +73,9 @@ class CausalIQHCAdapter(PackageAdapter):
         data.  The no_increase=0 default is omitted so hc() can
         apply its own default (tabu list size).  When trace is True,
         a non-None context is passed to hc() so the legacy Trace
-        object is populated.
+        object is populated.  When ``timeout`` is given it is passed
+        to hc() as ``max_elapsed`` (seconds); hc() raises
+        ``LearningTimeoutError`` when the limit is exceeded.
 
         Args:
             converted_data: Data object from convert_input.
@@ -81,6 +84,8 @@ class CausalIQHCAdapter(PackageAdapter):
             mapped_hyperparameters: Hyperparameters with names
                 already translated by AlgorithmRegistry name maps.
             trace: If True, pass context to hc() to capture a trace.
+            timeout: Maximum allowed execution time in seconds, or
+                None for no limit.
 
         Returns:
             Tuple (DAG, Trace|None) as returned by hc().
@@ -91,13 +96,14 @@ class CausalIQHCAdapter(PackageAdapter):
         is_continuous = converted_data.dstype == "continuous"
 
         for key, value in mapped_hyperparameters.items():
-            if key == "max_elapsed":
-                continue  # not supported by hc(); silently ignored
             if key == "score" and is_continuous:
                 value = _CONTINUOUS_SCORE_MAP.get(value, value)
             if key == "noinc" and value == 0:
                 continue  # omit → hc() defaults noinc to tabu size
             params[key] = value
+
+        if timeout is not None:
+            params["max_elapsed"] = timeout
 
         context: Optional[Dict[str, Any]] = {} if trace else None
         return hc(converted_data, params=params, context=context)

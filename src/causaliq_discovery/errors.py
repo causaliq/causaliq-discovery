@@ -134,6 +134,9 @@ def classify_error(exc: BaseException) -> LearningError:
     if isinstance(exc, subprocess.TimeoutExpired):
         return LearningTimeoutError(_message(exc))
 
+    if isinstance(exc, TimeoutError):
+        return LearningTimeoutError(_message(exc))
+
     if isinstance(exc, MemoryError):
         return LearningMemoryError(_message(exc))
 

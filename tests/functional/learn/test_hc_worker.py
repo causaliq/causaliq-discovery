@@ -521,3 +521,38 @@ def test_score_instance_method_on_cache_miss_ok(ab1):
     result = hcw._score("A", set())
     assert isinstance(result[0], float)
     assert isinstance(result[1], dict)
+
+
+# HCWorker.run raises LearningTimeoutError when max_elapsed exceeded.
+def test_hc_worker_timeout_raises_timeout_error(ab1):
+    from time import monotonic
+
+    from causaliq_discovery.errors import LearningTimeoutError
+
+    params = {**ab1["pa"], "max_elapsed": 1e-9}
+    hcw = HCWorker(
+        data=ab1["df"],
+        params=params,
+        knowledge=False,
+        context=ab1["co"],
+        init_cache=True,
+    )
+    # Put the deadline deterministically in the past so the elapsed-time
+    # check triggers regardless of the platform clock resolution.
+    hcw.start = monotonic() - 60
+    with pytest.raises(LearningTimeoutError):
+        hcw.run()
+
+
+# HCWorker.run completes normally when max_elapsed is not exceeded.
+def test_hc_worker_run_ok_within_timeout(ab1):
+    params = {**ab1["pa"], "max_elapsed": 3600.0}
+    hcw = HCWorker(
+        data=ab1["df"],
+        params=params,
+        knowledge=False,
+        context=ab1["co"],
+        init_cache=True,
+    )
+    hcw.run()
+    assert hcw.parents is not None

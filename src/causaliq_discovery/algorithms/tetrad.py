@@ -98,6 +98,7 @@ class TetradAdapter(PackageAdapter):
         algorithm: str,
         mapped_hyperparameters: Dict[str, Any],
         trace: bool = False,
+        timeout: Optional[int] = None,
     ) -> TetradRunOutput:
         """Run causal-cmd and parse the output graph file.
 
@@ -106,6 +107,8 @@ class TetradAdapter(PackageAdapter):
             algorithm: Algorithm name, currently ``fges`` only.
             mapped_hyperparameters: Mapped package-specific parameters.
             trace: Trace output is not currently supported.
+            timeout: Maximum allowed execution time in seconds, or
+                None to use the default Java session timeout.
 
         Returns:
             Dict containing parsed graph and runtime metadata.
@@ -113,6 +116,8 @@ class TetradAdapter(PackageAdapter):
         Raises:
             ValueError: If unsupported algorithm or parameter values.
             RuntimeError: If output file cannot be parsed.
+            subprocess.TimeoutExpired: If causal-cmd exceeds
+                ``timeout`` seconds.
         """
         if algorithm != "fges":
             raise ValueError(
@@ -126,7 +131,6 @@ class TetradAdapter(PackageAdapter):
         nodes: List[str] = converted_data["nodes"]
 
         params = mapped_hyperparameters.copy()
-        max_elapsed = params.pop("max_elapsed", None)
 
         cmd_params = _build_fges_params(dstype, params)
 
@@ -150,7 +154,7 @@ class TetradAdapter(PackageAdapter):
                 prefix,
                 "--verbose",
             ]
-            timeout = int(max_elapsed) if isinstance(max_elapsed, int) else 120
+            timeout = timeout if timeout is not None else 120
             stdout = _run_java_jar(jar_path, args=args, timeout=timeout)
 
             out_path = _resolve_output_file(tmpdir, prefix)

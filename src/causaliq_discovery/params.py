@@ -29,6 +29,9 @@ _RANDOMISING_RANDOMISE: frozenset = frozenset(
     {"var_order", "var_names", "row_order", "row_sample"}
 )
 
+# Default structure learning timeout in minutes when none is specified.
+DEFAULT_TIMEOUT_MINUTES = 60
+
 
 def validate_data(
     data: Any,
@@ -328,6 +331,26 @@ def validate_reference(
         )
 
 
+def validate_timeout(timeout: Any) -> None:
+    """Validate the timeout parameter.
+
+    Args:
+        timeout: Value passed as the ``timeout`` argument.
+
+    Raises:
+        TypeError: If timeout is not a float or int (or is a bool).
+        ValueError: If timeout is not a positive number.
+    """
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise TypeError(
+            f"'timeout' must be a float or int; got {type(timeout).__name__}."
+        )
+    if timeout <= 0:
+        raise ValueError(
+            f"'timeout' must be a positive number; got {timeout}."
+        )
+
+
 def validate_all(
     data: Any,
     algorithm: Any,
@@ -340,6 +363,7 @@ def validate_all(
     randomise: Any,
     seed: Any,
     reference: Any,
+    timeout: Any,
 ) -> None:
     """Run all parameter validators for learn_graph.
 
@@ -355,6 +379,7 @@ def validate_all(
         randomise: See learn_graph.
         seed: See learn_graph.
         reference: See learn_graph.
+        timeout: See learn_graph.
 
     Raises:
         TypeError: On any type violation.
@@ -371,3 +396,4 @@ def validate_all(
     validate_randomise(randomise)
     validate_seed(seed, randomise)
     validate_reference(reference, randomise)
+    validate_timeout(timeout)

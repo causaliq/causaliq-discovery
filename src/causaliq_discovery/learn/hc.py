@@ -22,6 +22,7 @@ from causaliq_discovery.learn.tabulist import TabuList
 HC_PARAMS = {
     "score",  # score to use e.g. 'bic', 'bde'
     "maxiter",  # limit on number of iterations
+    "max_elapsed",  # limit on elapsed learning time in seconds
     "tabu",  # length of tabulist, if not specified HC algorithm runs
     "noinc",  # num of iterations where delta <= 0 allowed in Tabu
     "prefer",  # whether adding un/connected arcs preferred
@@ -188,6 +189,14 @@ def _validate_hc_arguments(
             "maxiter" in params
             and (
                 not isinstance(params["maxiter"], int) or params["maxiter"] < 1
+            )
+        )
+        or (
+            "max_elapsed" in params
+            and (
+                isinstance(params["max_elapsed"], bool)
+                or not isinstance(params["max_elapsed"], (int, float))
+                or params["max_elapsed"] <= 0
             )
         )
         or ("prefer" in params and (not isinstance(params["prefer"], Prefer)))

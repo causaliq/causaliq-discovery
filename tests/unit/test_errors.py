@@ -70,6 +70,13 @@ def test_classify_error_timeout_expired() -> None:
     assert "timed out" in str(result)
 
 
+# classify_error maps a plain TimeoutError to timeout.
+def test_classify_error_timeout_error() -> None:
+    result = classify_error(TimeoutError("timed out"))
+    assert isinstance(result, LearningTimeoutError)
+    assert "timed out" in str(result)
+
+
 # classify_error maps MemoryError to memout.
 def test_classify_error_memory_error() -> None:
     result = classify_error(MemoryError("out of memory"))

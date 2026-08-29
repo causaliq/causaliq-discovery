@@ -151,14 +151,16 @@ class BnlearnAdapter(PackageAdapter):
         algorithm: str,
         mapped_hyperparameters: Dict[str, Any],
         trace: bool = False,
+        timeout: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Build and execute the bnlearn R script.
 
         Adjusts score and CI-test names for Gaussian continuous data,
         applies the BIC penalty-weight transformation for discrete
         data, then calls ``run_r_script`` with the assembled R code.
-        The ``max_elapsed`` hyperparameter is silently ignored because
-        bnlearn has no built-in timeout.
+        When ``timeout`` is given, the R subprocess is limited to that
+        many seconds and raises ``subprocess.TimeoutExpired`` on expiry
+        (classified as the ``timeout`` status by ``translate_error``).
 
         When ``trace=True``, bnlearn's ``debug=TRUE`` output is
         captured in stdout before the arcs sentinel, allowing
@@ -171,6 +173,8 @@ class BnlearnAdapter(PackageAdapter):
                 already translated via
                 ``AlgorithmSpec.hyperparameter_name_map``.
             trace: If True, enable bnlearn debug output.
+            timeout: Maximum allowed execution time in seconds, or
+                None to use the R session default.
 
         Returns:
             Dict with keys:
@@ -181,6 +185,8 @@ class BnlearnAdapter(PackageAdapter):
         Raises:
             RNotAvailableError: If R is not installed or not on PATH.
             RRuntimeError: If the R script raises a runtime error.
+            subprocess.TimeoutExpired: If the script exceeds
+                ``timeout`` seconds.
         """
         dstype = converted_data["dstype"]
         nodes = converted_data["nodes"]
@@ -190,7 +196,7 @@ class BnlearnAdapter(PackageAdapter):
         params: Dict[str, Any] = {
             k: v
             for k, v in mapped_hyperparameters.items()
-            if k != "max_elapsed" and not (k == "max.tabu" and v == 0)
+            if not (k == "max.tabu" and v == 0)
         }
 
         # Apply static score value translation (e.g. bdeu → bde).
@@ -218,7 +224,7 @@ class BnlearnAdapter(PackageAdapter):
             params=params,
             debug=trace,
         )
-        stdout = run_r_script(script)
+        stdout = run_r_script(script, timeout=timeout or 60)
         return {
             "stdout": stdout,
             "algorithm": algorithm,

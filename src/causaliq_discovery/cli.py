@@ -9,6 +9,7 @@ import click
 from jinja2 import Environment, FileSystemLoader
 
 from causaliq_discovery import __version__, learn_graph
+from causaliq_discovery.params import DEFAULT_TIMEOUT_MINUTES
 from causaliq_discovery.registry import AlgorithmRegistry, AlgorithmSpec
 
 
@@ -161,6 +162,18 @@ def cli() -> None:
     metavar="N",
     help="Deterministic randomisation seed (0–100).",
 )
+@click.option(
+    "-t",
+    "--timeout",
+    default=DEFAULT_TIMEOUT_MINUTES,
+    type=float,
+    metavar="MINUTES",
+    help=(
+        "Maximum allowed execution time for structure learning in "
+        "minutes, as a float or int. Applies to all structure learning "
+        "packages. Defaults to 60."
+    ),
+)
 def learn_cmd(
     input_path: str,
     algorithm: str,
@@ -174,6 +187,7 @@ def learn_cmd(
     randomise: tuple,
     reference: Optional[str],
     seed: Optional[int],
+    timeout: float,
 ) -> None:
     """Learn a causal graph from data.
 
@@ -199,6 +213,7 @@ def learn_cmd(
             randomise=randomise_list,
             reference=reference,
             seed=seed,
+            timeout=timeout,
         )
     except (TypeError, ValueError) as exc:
         raise click.UsageError(str(exc)) from exc

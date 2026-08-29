@@ -240,8 +240,8 @@ def test_cli_help_lists_describe(runner):
     assert "generate-docs" not in result.output
 
 
-# describe shows 'No limit' as default for max_elapsed.
-def test_describe_shows_no_limit_for_max_elapsed(runner):
+# describe shows 'No limit' as default for max_iterations.
+def test_describe_shows_no_limit_for_max_iterations(runner):
     result = runner.invoke(cli, ["describe", "hc"])
     assert result.exit_code == 0
     assert "No limit" in result.output
@@ -436,7 +436,7 @@ def test_generate_docs_reads_description_fragment(runner, tmp_path):
         cli, ["generate-docs", "--output-dir", str(tmp_path)]
     )
     assert result.exit_code == 0
-    # hc has max_elapsed with default_display="No limit" and no numeric default
+    # hc has max_iterations, default_display="No limit" & no numeric default
     hc_md = (tmp_path / "hc.md").read_text(encoding="utf-8")
     assert "No limit" in hc_md
 

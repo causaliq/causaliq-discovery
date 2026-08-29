@@ -186,6 +186,35 @@ def test_validate_valid_list_sample_size_ok() -> None:
     )
 
 
+# validate_parameters rejects an invalid timeout value.
+def test_validate_bad_timeout_raises() -> None:
+    provider = DiscoveryActionProvider()
+    with pytest.raises(ActionValidationError, match="timeout"):
+        provider.validate_parameters(
+            "learn_graph",
+            {
+                "input": "data.csv",
+                "algorithm": "hc-stable",
+                "output": "/out",
+                "timeout": "sixty",
+            },
+        )
+
+
+# validate_parameters accepts a valid float timeout.
+def test_validate_float_timeout_ok() -> None:
+    provider = DiscoveryActionProvider()
+    provider.validate_parameters(
+        "learn_graph",
+        {
+            "input": "data.csv",
+            "algorithm": "hc-stable",
+            "output": "/out",
+            "timeout": 2.5,
+        },
+    )
+
+
 # validate_parameters raises for an unknown randomise option.
 def test_validate_bad_randomise_raises() -> None:
     provider = DiscoveryActionProvider()
@@ -1149,6 +1178,43 @@ def test_failed_run_timeout_status(
     learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
     assert learn["status"] == "timeout"
     assert "timed out" in learn["error"]
+
+
+# The timeout action input is forwarded to learn_graph.
+def test_run_forwards_timeout_to_learn_graph(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import causaliq_discovery
+
+    real_learn_graph = causaliq_discovery.learn_graph
+    captured: Dict[str, Any] = {}
+
+    def capturing_learn_graph(**kwargs: object) -> object:
+        captured.update(kwargs)
+        return real_learn_graph(**kwargs)
+
+    monkeypatch.setattr(
+        causaliq_discovery, "learn_graph", capturing_learn_graph
+    )
+    provider = DiscoveryActionProvider()
+    status, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+            "timeout": 5,
+        },
+        mode="run",
+    )
+    assert status == "success"
+    assert captured["timeout"] == 5
+    out_dir = Path(metadata["outputs"][0])
+    with open(out_dir / "_meta.json") as f:
+        saved = json.load(f)
+    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert learn["timeout"] == 5
 
 
 # A failing matrix run does not stop the remaining runs.
