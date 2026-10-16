@@ -782,16 +782,19 @@ def test_db_output_rejects_sample_size_list(tmp_path: Path) -> None:
         )
 
 
-# .db cache output supports omitted sample_size and returns trace object.
+# .db cache output writes the trace to its own typed trace cache.
 def test_db_output_without_sample_size_with_trace(tmp_path: Path) -> None:
+    from causaliq_workflow.cache import WorkflowCache
+
     provider = DiscoveryActionProvider()
+    trace_cache = tmp_path / "trace.db"
     status, metadata, objects = provider.run(
         "learn_graph",
         {
             "input": _DISCRETE_CSV,
             "algorithm": "hc-stable",
             "output": str(tmp_path / "learn.db"),
-            "trace": True,
+            "trace": str(trace_cache),
         },
         mode="run",
     )
@@ -799,12 +802,14 @@ def test_db_output_without_sample_size_with_trace(tmp_path: Path) -> None:
     assert metadata["num_runs"] == 1
     assert isinstance(metadata["elapsed_seconds"], float)
     assert metadata["elapsed_seconds"] >= 0.0
-    assert any(
-        o["type"] == "trace"
-        and o["format"] == "json"
-        and o["action"] == "learn_graph"
-        for o in objects
-    )
+    # The graph cache holds only the dag object
+    assert [o["type"] for o in objects] == ["dag"]
+    # The trace lives in its own typed cache
+    with WorkflowCache(trace_cache) as cache:
+        assert cache.get_cache_type() == "trace"
+        entry = cache.get(cache.list_entries()[0]["matrix_values"])
+    assert entry is not None
+    assert entry.object_types() == ["trace"]
 
 
 # Workflow cache mode works when output is consumed at workflow level.
@@ -846,7 +851,7 @@ def test_single_run_meta_json_includes_trace_object(tmp_path: Path) -> None:
             "input": _DISCRETE_CSV,
             "algorithm": "hc-stable",
             "output": str(tmp_path),
-            "trace": True,
+            "trace": str(tmp_path / "trace.db"),
         },
         mode="run",
     )
@@ -871,22 +876,39 @@ def test_validate_invalid_trace_type_raises() -> None:
         )
 
 
-# validate_parameters accepts string trace expressions.
-def test_validate_string_trace_expression_ok() -> None:
-    provider = DiscoveryActionProvider()
-    provider.validate_parameters(
-        "learn_graph",
-        {
-            "input": "data.csv",
-            "algorithm": "hc-stable",
-            "output": "/out",
-            "trace": "(True if 10000 == 10000 else False)",
-        },
-    )
+# _trace_cache_path returns None when no trace is requested.
+def test_trace_cache_path_none_returns_none() -> None:
+    from causaliq_discovery.workflow_action import _trace_cache_path
+
+    assert _trace_cache_path(None) is None
+    assert _trace_cache_path("  ") is None
 
 
-# Expression trace evaluating False produces no trace object.
-def test_single_run_expression_trace_false(tmp_path: Path) -> None:
+# _trace_cache_path returns the trimmed .db path.
+def test_trace_cache_path_returns_db_path() -> None:
+    from causaliq_discovery.workflow_action import _trace_cache_path
+
+    assert _trace_cache_path(" traces.db ") == "traces.db"
+
+
+# _trace_cache_path rejects non-string values.
+def test_trace_cache_path_rejects_non_string() -> None:
+    from causaliq_discovery.workflow_action import _trace_cache_path
+
+    with pytest.raises(ActionValidationError, match="trace"):
+        _trace_cache_path(True)
+
+
+# _trace_cache_path rejects paths that are not workflow caches.
+def test_trace_cache_path_rejects_non_cache_path() -> None:
+    from causaliq_discovery.workflow_action import _trace_cache_path
+
+    with pytest.raises(ActionValidationError, match="trace"):
+        _trace_cache_path("traces.csv")
+
+
+# Omitting trace produces no trace object or cache.
+def test_single_run_without_trace_disabled(tmp_path: Path) -> None:
     provider = DiscoveryActionProvider()
     _, metadata, _ = provider.run(
         "learn_graph",
@@ -894,7 +916,6 @@ def test_single_run_expression_trace_false(tmp_path: Path) -> None:
             "input": _DISCRETE_CSV,
             "algorithm": "hc-stable",
             "output": str(tmp_path),
-            "trace": "(True if 5000 == 10000 else False)",
         },
         mode="run",
     )
@@ -906,8 +927,8 @@ def test_single_run_expression_trace_false(tmp_path: Path) -> None:
     assert learn["trace"] is False
 
 
-# Expression trace evaluating True produces a trace object.
-def test_single_run_expression_trace_true(tmp_path: Path) -> None:
+# A trace cache path enables tracing in directory output mode.
+def test_single_run_trace_cache_path_enables_trace(tmp_path: Path) -> None:
     provider = DiscoveryActionProvider()
     _, metadata, _ = provider.run(
         "learn_graph",
@@ -915,7 +936,7 @@ def test_single_run_expression_trace_true(tmp_path: Path) -> None:
             "input": _DISCRETE_CSV,
             "algorithm": "hc-stable",
             "output": str(tmp_path),
-            "trace": "(True if 10000 == 10000 else False)",
+            "trace": str(tmp_path / "trace.db"),
         },
         mode="run",
     )
@@ -927,43 +948,57 @@ def test_single_run_expression_trace_true(tmp_path: Path) -> None:
     assert learn["trace"] is True
 
 
-# Quoted string "False" disables trace instead of coercing to True.
-def test_single_run_string_false_trace_disabled(tmp_path: Path) -> None:
+# A trace cache written in cache mode holds one trace object per key.
+def test_db_output_trace_cache_entry_key(tmp_path: Path) -> None:
+    from causaliq_workflow.cache import WorkflowCache
+
     provider = DiscoveryActionProvider()
-    _, metadata, _ = provider.run(
+    trace_cache = tmp_path / "trace.db"
+
+    class DummyContext:
+        mode = "run"
+        matrix = {"algorithm": ["hc"]}
+        matrix_values = {"algorithm": "hc", "network": "asia"}
+        cache = object()
+
+    status, _, _ = provider.run(
         "learn_graph",
         {
             "input": _DISCRETE_CSV,
             "algorithm": "hc-stable",
-            "output": str(tmp_path),
-            "trace": "False",
+            "output": str(tmp_path / "learn.db"),
+            "trace": str(trace_cache),
         },
         mode="run",
+        context=DummyContext(),
     )
-    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
-    with open(meta_path) as f:
-        saved = json.load(f)
-    assert "trace" not in saved["objects"]
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
-    assert learn["trace"] is False
+    assert status == "success"
+    with WorkflowCache(trace_cache) as cache:
+        assert cache.get_matrix_key_order() == ["algorithm"]
+        entries = cache.list_entries()
+    assert entries[0]["matrix_values"] == {
+        "algorithm": "hc",
+        "network": "asia",
+    }
 
 
-# Cache output respects an expression trace that evaluates False.
-def test_db_output_expression_trace_false(tmp_path: Path) -> None:
+# Cache output without a trace writes no trace cache.
+def test_db_output_without_trace_writes_no_cache(tmp_path: Path) -> None:
     provider = DiscoveryActionProvider()
+    trace_cache = tmp_path / "trace.db"
     status, metadata, objects = provider.run(
         "learn_graph",
         {
             "input": _DISCRETE_CSV,
             "algorithm": "hc-stable",
             "output": str(tmp_path / "learn.db"),
-            "trace": "(True if 5000 == 10000 else False)",
         },
         mode="run",
     )
     assert status == "success"
-    assert not any(o["type"] == "trace" for o in objects)
+    assert [o["type"] for o in objects] == ["dag"]
     assert metadata["trace"] is False
+    assert not trace_cache.exists()
 
 
 # _build_output_dir with variant and sample_size produces correct path.

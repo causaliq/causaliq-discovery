@@ -52,6 +52,7 @@ dev = [
     "pre-commit>=2.20.0",
     "build>=0.8.0",
     "twine>=4.0.0",
+    "causaliq-workflow>=0.6.0.dev5",
 ]
 test = [
     "pytest>=7.0.0",

@@ -90,10 +90,6 @@ else:
 
 
 from causaliq_core.graph.io import graphml  # noqa: E402
-from causaliq_core.utils import (  # noqa: E402
-    FilterExpressionError,
-    evaluate_filter,
-)
 
 from causaliq_discovery.data_cache import load_cached_data  # noqa: E402
 from causaliq_discovery.errors import LearningError  # noqa: E402
@@ -212,75 +208,67 @@ def _is_workflow_cache_path(output_path: str) -> bool:
     return output_path.lower().endswith(".db")
 
 
-_UNRESOLVED = object()
+def _trace_cache_path(value: Any) -> Optional[str]:
+    """Resolve the ``trace`` parameter to a workflow cache path.
 
-
-def _resolve_trace_flag(
-    value: Any,
-    context: Optional[WorkflowContext] = None,
-    default: bool = False,
-) -> bool:
-    """Resolve the trace parameter to a boolean flag.
-
-    Accepts a native bool, a numeric value (coerced with ``bool()``),
-    or a string.  Strings are first parsed as Python literals so
-    ``"True"`` and ``"False"`` resolve correctly, then evaluated as
-    safe expressions via :func:`evaluate_filter`.  This supports
-    workflow expressions such as
-    ``(True if {{sample_size}} == 10000 else False)`` after template
-    substitution, with matrix variables available as names when a
-    workflow context is supplied.
+    The trace is written to its own typed workflow cache. When ``trace``
+    is omitted no trace is produced; when supplied it must name a ``.db``
+    workflow cache.
 
     Args:
         value: Raw trace parameter value.
-        context: Optional workflow context providing matrix values
-            for expression evaluation.
-        default: Value returned when value is None or empty.
 
     Returns:
-        Resolved boolean trace flag.
+        The trace cache path, or None when no trace was requested.
 
     Raises:
-        ActionValidationError: If value cannot be resolved to a bool.
+        ActionValidationError: If value is not a ``.db`` path.
     """
     if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
+        return None
     if not isinstance(value, str):
         raise ActionValidationError(
-            f"'trace' must be a bool, int, or string expression; "
+            "'trace' must be a workflow cache (.db) path; "
             f"got {type(value).__name__}."
         )
-    expr = value.strip()
-    if not expr:
-        return default
-    try:
-        parsed: Any = ast.literal_eval(expr)
-    except (ValueError, SyntaxError):
-        parsed = _UNRESOLVED
-    if parsed is not _UNRESOLVED:
-        if isinstance(parsed, bool):
-            return parsed
-        if isinstance(parsed, (int, float)):
-            return bool(parsed)
+    path = value.strip()
+    if not path:
+        return None
+    if not _is_workflow_cache_path(path):
         raise ActionValidationError(
-            f"'trace' expression {value!r} must evaluate to a "
-            f"bool, got {type(parsed).__name__}."
+            f"'trace' must be a workflow cache (.db) path; got {value!r}."
         )
-    names: Dict[str, Any] = {}
-    if context is not None:
-        matrix_values = getattr(context, "matrix_values", None)
-        if isinstance(matrix_values, dict):
-            names.update(matrix_values)
-    try:
-        return evaluate_filter(expr, names)
-    except (FilterExpressionError, TypeError) as exc:
-        raise ActionValidationError(
-            f"Invalid 'trace' expression {value!r}: {exc}"
-        ) from exc
+    return path
+
+
+def _write_trace_cache(
+    trace_path: str,
+    context: Optional[WorkflowContext],
+    trace: Any,
+) -> None:
+    """Write the execution trace to its own typed workflow cache.
+
+    The graph and trace live in separate caches so that each cache holds a
+    single object type. The trace cache is opened by the action because
+    the workflow executor manages only the step's ``output`` cache.
+
+    Args:
+        trace_path: Path of the trace workflow cache.
+        context: Workflow context supplying the matrix key values.
+        trace: Trace payload to serialise as JSON.
+    """
+    from causaliq_workflow.cache import CacheEntry, WorkflowCache
+
+    matrix_values = getattr(context, "matrix_values", None) or {}
+    entry = CacheEntry()
+    entry.add_object(
+        "trace", "json", json.dumps(trace, indent=2), "learn_graph"
+    )
+    with WorkflowCache(trace_path) as cache:
+        if cache.get_matrix_key_order() is None:
+            matrix = getattr(context, "matrix", None) or {}
+            cache.set_matrix_key_order(list(matrix.keys()))
+        cache.put_typed(dict(matrix_values), entry)
 
 
 def _resolve_run_parameters(
@@ -596,15 +584,12 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         "trace": ActionInput(
             name="trace",
             description=(
-                "If True, include a step-by-step execution trace "
-                "in the output directory. Accepts a boolean "
-                "expression string, e.g. (True if "
-                "{{sample_size}} == 10000 else False), which is "
-                "evaluated with the workflow matrix variables."
+                "Workflow cache (.db) receiving the step-by-step "
+                "execution trace as a typed 'trace' object. Omit to "
+                "produce no trace."
             ),
             required=False,
-            default=False,
-            type_hint="bool",
+            type_hint="str",
         ),
         "variable_types": ActionInput(
             name="variable_types",
@@ -688,14 +673,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     "'learn_graph' requires an 'algorithm' parameter."
                 )
             sizes = _parse_sample_sizes(parameters.get("sample_size"))
-            trace_value = parameters.get("trace")
-            if trace_value is not None and not isinstance(
-                trace_value, (bool, int, str)
-            ):
-                raise ValueError(
-                    "'trace' must be a bool, int, or string "
-                    f"expression; got {type(trace_value).__name__}."
-                )
+            _trace_cache_path(parameters.get("trace"))
             output_value = str(parameters.get("output", ""))
             if _is_workflow_cache_path(output_value):
                 if sizes is not None and len(sizes) != 1:
@@ -838,9 +816,8 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         hyperparameters: Optional[Dict[str, Any]] = parameters.get(
             "hyperparameters"
         )
-        include_trace = _resolve_trace_flag(
-            parameters.get("trace", False), context=context
-        )
+        trace_path = _trace_cache_path(parameters.get("trace"))
+        include_trace = trace_path is not None
         variable_types = parameters.get("variable_types")
         randomise = parameters.get("randomise")
         seed = parameters.get("seed")
@@ -1018,15 +995,8 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                         "content": graph_buf.getvalue(),
                     }
                 )
-                if result.trace is not None:
-                    all_objects.append(
-                        {
-                            "type": "trace",
-                            "format": "json",
-                            "action": "learn_graph",
-                            "content": json.dumps(result.trace, indent=2),
-                        }
-                    )
+                if trace_path is not None and result.trace is not None:
+                    _write_trace_cache(trace_path, context, result.trace)
                 output_seconds = perf_counter() - output_start
                 run_elapsed = perf_counter() - run_start
                 output_total_seconds += output_seconds
