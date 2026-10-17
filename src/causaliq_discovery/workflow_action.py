@@ -79,7 +79,6 @@ else:
 
         class ActionPattern:  # type: ignore[no-redef]
             CREATE = "create"
-            UPDATE = "update"
             AGGREGATE = "aggregate"
 
         class WorkflowContext:  # type: ignore[no-redef]
