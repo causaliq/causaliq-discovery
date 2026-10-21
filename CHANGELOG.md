@@ -12,7 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pytest testing and CI testing on github.
 
 ### Changed
-- Nothing yet
+- **Version 2 metadata** - directory `_meta.json` files now use the shared
+  schema version 2 envelope (`provenance`, `inputs`, `result`, `history`)
+  and no longer contain an `objects` map; object files identify their type.
+  Requires `causaliq-core>=0.8.0.dev7` and
+  `causaliq-workflow>=0.6.0.dev8`.
 
 ### Deprecated
 - Nothing yet
@@ -21,7 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nothing yet
 
 ### Fixed
-- Nothing yet
+- **Analysis dependency** - require `causaliq-analysis>=0.5.0.dev1`,
+  which uses `ActionPattern.AGGREGATE`; 0.4.0 declares the removed
+  `ActionPattern.UPDATE` and fails to import with `causaliq-core>=0.8.0.dev7`.
 
 ### Security
 - Nothing yet

@@ -28,7 +28,6 @@ Stable and Tabu-Stable algorithms. Int. J. Approx. Reason. 186, 109522.
 | Hyperparameter | Type | Default | Values | Description |
 |---|---|---|---|---|
 | [`iss`](../hyperparameters.md#iss) | float | 1.0 | — | Imaginary Sample Size weighting the prior in Bayesian scores. |
-| [`max_elapsed`](../hyperparameters.md#max_elapsed) | int | No limit | — | Maximum allowed execution time in seconds. |
 | [`max_iterations`](../hyperparameters.md#max_iterations) | int | No limit | — | Maximum number of iterations. |
 | [`no_increase`](../hyperparameters.md#no_increase) | int | 10 | — | Iterations permitted without a score improvement. |
 | [`penalty_weight`](../hyperparameters.md#penalty_weight) | float | 1.0 | — | Weight of the penalty component in AIC and BIC scores. |

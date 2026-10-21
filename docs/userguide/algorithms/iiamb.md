@@ -29,7 +29,7 @@ Scale Markov Blanket Discovery. FLAIRS 2003, 376–380.
 |---|---|---|---|---|
 | [`alpha`](../hyperparameters.md#alpha) | float | 0.05 | — | p-value threshold below which a CI test indicates conditional independence. |
 | [`ci_test`](../hyperparameters.md#ci_test) | str | mi | `mi`, `x2` | Conditional independence test used in constraint-based learning. |
-| [`max_elapsed`](../hyperparameters.md#max_elapsed) | int | No limit | — | Maximum allowed execution time in seconds. |
+
 
 ## Variants
 

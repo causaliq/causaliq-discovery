@@ -46,6 +46,9 @@ a CausalIQ Workflow. There are several points to note:
 * although not done in this example, the input, algorithm, and hyperparameters can all
 be parameterised to support wide ranging sensitivity analysis
 * in this case, the output is a Workflow Cache
+* the learnt graph is written to the `output` cache as a `dag` object,
+  and the execution trace to its own `trace` cache as a `trace` object,
+  so each cache holds a single object type
 
 
 ```yaml
@@ -57,6 +60,7 @@ steps:
       input: "data.csv"
       algorithm: "tabu-stable"
       output: "results/learnt_graphs.db"
+      trace: "results/learnt_traces.db"
       hyperparameters: 
         score: "bdeu"
         iss: 5
@@ -65,20 +69,44 @@ steps:
 
 ### Output and error handling
 
-Each workflow-cache entry is exported as a directory containing the
-learnt graph (`graph.graphml`), an optional trace (`trace.json`) and
-a `_meta.json` metadata file with `matrix_values`, `created_at`,
-`metadata` and `objects` root elements.  The
-`metadata.causaliq-discovery.learn_graph` element records the input
-arguments and the run outcome:
+Each workflow-cache entry is exported as a directory containing its
+single typed object and a `_meta.json` metadata file.  `learn_graph`
+writes the learnt graph (`graph.graphml`) to the step's `output` cache
+and, when `trace` is supplied, the execution trace (`trace.json`) to its
+own `trace` cache, so the graph and trace are held in separate typed
+caches.  There is no `objects` map in the metadata: the object filename
+identifies its type.
 
-- `status` — one of `ok`, `timeout`, `memout`, `input_error` or
-  `internal_error`.
-- `error` — an optional explanation for failed runs.
+`_meta.json` uses schema version 2.  Its root elements are
+`schema_version`, `matrix_values`, `created_at` and `metadata`.  The
+`metadata` element contains four blocks:
 
-Structure learning failures are handled internally: a failed run still
-records its `_meta.json` (with the failure `status` and `error`) and
-the remaining runs in a workflow matrix continue to execute.
+- `provenance` — the provider and action that produced the entry,
+  provider and workflow versions where available, timestamps, duration
+  and runtime environment.
+- `inputs` — the effective action parameters.  This is currently empty
+  while `learn_graph` reports its metadata in `result`; the planned
+  values audit will move input-like fields here.
+- `result` — the `learn_graph` outcome and run details, including
+  `status`, `error`, `algorithm`, `variant`, `hyperparameters`,
+  `sample_size`, `input`, `graph_type`, `num_nodes`, `num_edges`,
+  `trace`, `timeout` and the measured timings.
+- `history` — metadata inherited from earlier producers.  It is
+  currently reserved and written as `{}`.
+
+The `status` values are:
+
+- `ok` — structure learning completed successfully.
+- `timeout` — structure learning timed out.
+- `memout` — structure learning ran out of memory.
+- `input_error` — structure learning failed because the input was
+  ill-formed (e.g. columns without unique values).
+- `internal_error` — structure learning failed for any other reason.
+
+`error` is an optional explanation for failed runs.  Structure learning
+failures are handled internally: a failed run still records its
+`_meta.json` (with `result.status` and `result.error`) and no graph
+object, and the remaining runs in a workflow matrix continue to execute.
 
 ## Parameters
 
@@ -91,7 +119,7 @@ the CLI, Python and Workflow Action interfaces. Parameter names are the same acr
 | [`algorithm`](#algorithm-parameter)             | `-a`     | Yes         | Structure learning algorithm to use |
 | [`output`](#output-parameter)                   | `-o`     | (see below) | Output folder/database where results will be placed, including the learnt graph |
 | [`hyperparameters`](#hyperparameters-parameter) | `-p`     | No          | Structure learning hyperparameters |
-| [`trace`](#trace-parameter)                     | `-d`     | No          | Whether a detailed structure learning trace should be included in the result output |
+| [`trace`](#trace-parameter)                     | `-d`     | No          | Whether a structure learning trace should be included; a `.db` workflow cache path in workflow usage |
 | [`variable_types`](#variable_types-parameter)   | `-T`     | No          | Information regarding the data variable types (`CONTINUOUS`, `DISCRETE` etc.) |
 | [`sample_size`](#sample_size-parameter)         | `-N`     | No          | Sample size to learn from |
 | [`variant`](#variant-parameter)                 | `-V`     | No          | Variant of a algorithm if there are several, for instance,  provided in different packages |
@@ -127,15 +155,20 @@ This parameter is mandatory except on the Python `learn_graph` method where a de
 
 - the **learnt graph** - either a DAG, PDAG, CPDAG, MAG or PAG depending upon the algorithm used.
 - **structure learning metadata** which provides full details of the structure learning run, including the algorithm, date and time of execution and its elapsed time and *all* relevant hyperparameters - whether specified explictly using the `hyperparameters` parameter, or whether default values specific to each algorithm.
-- if the `trace` parameter is set true, then the result will also contain an **execution trace** which provide full detail of the steps the algorithm took in creating the learnt graph, sufficient for a human or LLM to understand how the properties of the learnt graph arose from the data.
+- if `trace` is enabled (a boolean in Python and the CLI, or a cache
+  path in workflow usage), then the result will also contain an
+  **execution trace** which provides full detail of the steps the
+  algorithm took in creating the learnt graph, sufficient for a human or
+  LLM to understand how the properties of the learnt graph arose from
+  the data.
 
 The format of these elements will be dependent on the form that the result is returned in - a file, element within a Workflow Cache object or `DiscoveryResult` Python object as follows:
 
 |                 | File          | Workflow cache            | `DiscoveryResult` |
 |-----------------|---------------|---------------------------|-------------------|
 | Learnt Graph    | .graphML file | compressed `SDG` object   | [`SDG` object](https://causaliq.github.io/causaliq-core/api/graph/)    |
-| Metadata        | JSON file     | compressed JSON           | Python `dict`     |
-| Execution trace | JSON file     | compressed JSON           | Python `list[dict]` |
+| Metadata        | JSON file (`metadata.json`) | schema version 2 JSON (`_meta.json` on export) | Python `dict`     |
+| Execution trace | JSON file (`trace.json`) | compressed `trace` object in a trace cache | Python `list[dict]` |
 
 #### Execution trace format
 
@@ -187,7 +220,23 @@ The supported hyperparameters and their allowed values will be **specific to eac
 
 ### `trace` parameter
 
-This optional parameter determines whether the results should contain a trace object or not; this is a simple boolean flag. The default is `false`.
+This optional parameter determines whether the results should contain a
+structure learning trace.  It is interpreted differently by each
+interface:
+
+- **Python and CLI** — a boolean flag (`-d`/`--trace`).  When `True`, the
+  trace is written to `trace.json` alongside the learnt graph in the
+  output directory.  The default is `false`.
+- **Workflow action** — the path of a `.db` workflow cache that receives
+  the trace as a typed `trace` object, one object per cache key.  Omit
+  the parameter to produce no trace.  The learnt graph is written to the
+  step's `output` cache as a `dag` object, so the graph and trace are
+  held in separate typed caches rather than together.
+
+A trace cache is written (or re-written) only when the step runs: a
+workflow entry that already holds a graph is skipped, so add `trace` to a
+workflow that has already run and re-run the step in `force` mode to
+populate the trace cache.
 
 
 ### `variable_types` parameter

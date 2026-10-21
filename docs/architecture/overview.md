@@ -98,17 +98,28 @@ and optionally `trace.json` to disk.
 ### DiscoveryActionProvider
 
 CausalIQ workflow action integration.  Subclasses
-`CausalIQActionProvider` from `causaliq-workflow` and registers
-`learn_graph` as an action.  When `causaliq-workflow` is not installed,
+`CausalIQActionProvider` from `causaliq-core` and registers
+`learn_graph` as an action.  The action writes the learnt graph to the
+step's `output` cache and, when `trace` names a workflow cache, the
+execution trace to that separate `trace` cache, so each cache holds a
+single object type.  When `causaliq-workflow` is not installed,
 the provider is replaced by a stub class and `WORKFLOW_AVAILABLE`
 is set to `False`.
+
+Workflow outputs use the schema version 2 metadata envelope:
+`metadata.provenance` records who produced the entry and when,
+`metadata.result` holds the `learn_graph` outcome, and `metadata.inputs`
+and `metadata.history` are reserved for the values audit and history
+population respectively.  Directory output writes this envelope to
+`_meta.json`; the Python `DiscoveryResult.save()` path continues to
+write `metadata.json` and is not the workflow envelope.
 
 ### Error handling
 
 Structure learning failures are handled internally rather than
 throwing exceptions that stop the calling workflow.  Each run records
-its outcome in the `status` field of the `_meta.json` metadata file,
-using the following vocabulary:
+its outcome in `metadata.result.status` of the `_meta.json` metadata
+file, using the following vocabulary:
 
 - `ok` — structure learning completed successfully.
 - `timeout` — structure learning timed out.

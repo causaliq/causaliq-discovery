@@ -1,6 +1,6 @@
 # CausalIQ Discovery - Development Roadmap
 
-**Last updated**: August 29, 2026  
+**Last updated**: October 21, 2026
 
 This project roadmap fits into the [overall ecosystem roadmap](https:/https://causaliq.org/projects/ecosystem_roadmap/)
 
@@ -26,10 +26,11 @@ knowledge guidance with the following commit sequence:
 1. ✅ `learn_graph` workflow action
 1. ✅ Tetrad FGES Java integration and reference testing
 1. ✅ Handle errors gracefully, categorising them systematically
-1. ✅ Fix so trace argument expressions work
+1. ✅ `learn_graph` workflow action writes the trace to a separate typed workflow cache
+1. ✅ Version 2 metadata envelope in workflow `_meta.json` exports
 1. ✅ Optimise data loading
 1. ✅ Data ordering and randomisation
-1. ✅ [add timeout parameter](current_task.md)
+1. ✅ Add timeout parameter
 * 🛣️ Refactor large modules e.g. `workflow_action`, remove code from init.py1.
 * 🛣️ Support Python 3.10-14, with 3.12 as default, and badge as [![SPEC 0 — Minimum Supported Dependencies](https://img.shields.io/badge/SPEC-0-green?labelColor=%23004811&color=%235CA038)](https://scientific-python.org/specs/spec-0000/)
 ---
