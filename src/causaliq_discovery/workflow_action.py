@@ -6,6 +6,7 @@ integration, enabling learn_graph to be used in workflow definitions.
 """
 
 import ast
+import importlib.metadata
 import json
 import os
 from dataclasses import dataclass
@@ -89,6 +90,8 @@ else:
 
 
 from causaliq_core.graph.io import graphml  # noqa: E402
+from causaliq_core.metadata import SCHEMA_VERSION, build_metadata  # noqa: E402
+from causaliq_core.utils import environment as environment_info  # noqa: E402
 
 from causaliq_discovery.data_cache import load_cached_data  # noqa: E402
 from causaliq_discovery.errors import LearningError  # noqa: E402
@@ -397,16 +400,6 @@ def _build_action_metadata(
     return meta
 
 
-def _build_objects_metadata(include_trace: bool) -> Dict[str, Dict[str, str]]:
-    """Build CausalIQ-style object descriptors for metadata envelopes."""
-    objects: Dict[str, Dict[str, str]] = {
-        "dag": {"format": "graphml", "action": "learn_graph"}
-    }
-    if include_trace:
-        objects["trace"] = {"format": "json", "action": "learn_graph"}
-    return objects
-
-
 def _write_meta_json(
     output_dir: str,
     *,
@@ -426,25 +419,60 @@ def _write_meta_json(
         sample_size: Sample size used for the run.
         metadata: learn_graph metadata payload, including ``status``
             and (for failed runs) ``error``.
-        include_trace: Whether a trace object descriptor is written.
-        has_graph: When False (failed run) the ``objects`` section is
-            written as ``{}``.
+        include_trace: Whether trace output was requested.  The flag is
+            recorded in the result block by the caller; this helper only
+            writes the directory metadata envelope.
+        has_graph: Whether a graph was produced.  Failed runs write the
+            same version 2 envelope, with the failure status in result.
     """
-    wrapped_metadata = {"causaliq-discovery": {"learn_graph": metadata}}
-    objects = _build_objects_metadata(include_trace) if has_graph else {}
+    finished_at = datetime.now(timezone.utc).isoformat()
+    envelope = _metadata_envelope(metadata, finished_at)
     meta = {
+        "schema_version": SCHEMA_VERSION,
         "matrix_values": {
             "algorithm": algorithm,
             "variant": variant,
             "sample_size": sample_size,
         },
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "metadata": wrapped_metadata,
-        "objects": objects,
+        "created_at": finished_at,
+        "metadata": envelope,
     }
     meta_path = os.path.join(output_dir, "_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
+
+
+def _metadata_envelope(
+    metadata: Dict[str, Any],
+    finished_at: str,
+) -> Dict[str, Any]:
+    """Build the version 2 metadata envelope for a directory output."""
+    return build_metadata(
+        provider="causaliq-discovery",
+        action="learn_graph",
+        inputs={},
+        result=dict(metadata),
+        provider_version=_provider_version(),
+        finished_at=finished_at,
+        environment=_environment_info(),
+    )
+
+
+def _provider_version() -> Optional[str]:
+    """Return the installed causaliq-discovery version, if available."""
+    try:
+        return importlib.metadata.version("causaliq-discovery")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _environment_info() -> Optional[Dict[str, Any]]:
+    """Return runtime environment information, or None."""
+    try:
+        env = environment_info()
+    except Exception:
+        return None
+    return dict(env) if isinstance(env, dict) else None
 
 
 def _build_action_summary_metadata(

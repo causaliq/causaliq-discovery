@@ -700,7 +700,7 @@ def test_single_run_var_best_uses_reference(tmp_path: Path) -> None:
     out_dir = Path(metadata["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    learn = saved["metadata"]["result"]
     assert learn["randomise"] == ["var_best"]
     assert learn["reference"] == str(ref)
     # variable_order reflects the topological order used for learning.
@@ -723,20 +723,19 @@ def test_single_run_meta_json_content(tmp_path: Path) -> None:
     meta_path = Path(metadata["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    assert (
-        saved["metadata"]["causaliq-discovery"]["learn_graph"]["algorithm"]
-        == "hc-stable"
-    )
-    assert saved["objects"]["dag"]["format"] == "graphml"
-    elapsed = saved["metadata"]["causaliq-discovery"]["learn_graph"][
-        "elapsed_seconds"
-    ]
+    assert saved["metadata"]["result"]["algorithm"] == "hc-stable"
+    assert (meta_path.parent / "graph.graphml").exists()
+    elapsed = saved["metadata"]["result"]["elapsed_seconds"]
     assert isinstance(elapsed, float)
     assert elapsed >= 0.0
     # variable_order lists the data variables in their original order.
-    assert saved["metadata"]["causaliq-discovery"]["learn_graph"][
-        "variable_order"
-    ] == ["X", "Y", "Z", "U", "V"]
+    assert saved["metadata"]["result"]["variable_order"] == [
+        "X",
+        "Y",
+        "Z",
+        "U",
+        "V",
+    ]
 
 
 # .db cache output returns graph objects instead of output directories.
@@ -858,7 +857,9 @@ def test_single_run_meta_json_includes_trace_object(tmp_path: Path) -> None:
     meta_path = Path(metadata["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    assert saved["objects"]["trace"]["format"] == "json"
+    assert saved["metadata"]["result"]["trace"] is True
+
+    assert (meta_path.parent / "trace.json").exists()
 
 
 # validate_parameters rejects non-bool, non-string trace values.
@@ -922,8 +923,8 @@ def test_single_run_without_trace_disabled(tmp_path: Path) -> None:
     meta_path = Path(metadata["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    assert "trace" not in saved["objects"]
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert not (meta_path.parent / "trace.json").exists()
+    learn = saved["metadata"]["result"]
     assert learn["trace"] is False
 
 
@@ -943,8 +944,8 @@ def test_single_run_trace_cache_path_enables_trace(tmp_path: Path) -> None:
     meta_path = Path(metadata["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    assert saved["objects"]["trace"]["format"] == "json"
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    assert (meta_path.parent / "trace.json").exists()
+    learn = saved["metadata"]["result"]
     assert learn["trace"] is True
 
 
@@ -1143,7 +1144,7 @@ def test_single_run_meta_json_has_ok_status(tmp_path: Path) -> None:
     meta_path = Path(metadata["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    learn = saved["metadata"]["result"]
     assert learn["status"] == "ok"
 
 
@@ -1174,10 +1175,10 @@ def test_failed_run_writes_meta_json_with_input_status(
     out_dir = Path(metadata["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    learn = saved["metadata"]["result"]
     assert learn["status"] == "input_error"
     assert "identical column names" in learn["error"]
-    assert saved["objects"] == {}
+    assert not (out_dir / "graph.graphml").exists()
     assert metadata["status"] == "input_error"
 
 
@@ -1210,7 +1211,7 @@ def test_failed_run_timeout_status(
     out_dir = Path(metadata["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    learn = saved["metadata"]["result"]
     assert learn["status"] == "timeout"
     assert "timed out" in learn["error"]
 
@@ -1248,7 +1249,7 @@ def test_run_forwards_timeout_to_learn_graph(
     out_dir = Path(metadata["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    learn = saved["metadata"]["result"]
     assert learn["timeout"] == 5
 
 
@@ -1285,7 +1286,7 @@ def test_matrix_partial_failure_continues(
     for out_dir in metadata["outputs"]:
         with open(Path(out_dir) / "_meta.json") as f:
             saved = json.load(f)
-        learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+        learn = saved["metadata"]["result"]
         if "sample_8" in out_dir:
             assert learn["status"] == "input_error"
         else:
@@ -1340,9 +1341,9 @@ def test_data_load_failure_records_meta_json(tmp_path: Path) -> None:
     for out_dir in metadata["outputs"]:
         with open(Path(out_dir) / "_meta.json") as f:
             saved = json.load(f)
-        learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+        learn = saved["metadata"]["result"]
         assert learn["status"] == "internal_error"
-        assert saved["objects"] == {}
+        assert not (Path(out_dir) / "graph.graphml").exists()
 
 
 # Workflow cache output records a shared data-load failure.
@@ -1381,7 +1382,7 @@ def test_single_run_data_load_failure(tmp_path: Path) -> None:
     out_dir = Path(metadata["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
-    learn = saved["metadata"]["causaliq-discovery"]["learn_graph"]
+    learn = saved["metadata"]["result"]
     assert learn["status"] == "internal_error"
 
 

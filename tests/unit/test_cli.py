@@ -1,12 +1,12 @@
 """Unit tests for the cqdisc CLI."""
 
 from pathlib import Path
-from unittest.mock import patch
 
 import click
 import pytest
 from click.testing import CliRunner
 
+from causaliq_discovery import __version__
 from causaliq_discovery.cli import (
     _algorithm_title,
     _build_template_context,
@@ -28,7 +28,7 @@ def runner():
 def test_cli_version(runner):
     result = runner.invoke(cli, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.0" in result.output
+    assert __version__ in result.output
 
 
 # Help flag lists all subcommands but not hidden generate-docs.
@@ -248,7 +248,7 @@ def test_describe_shows_no_limit_for_max_iterations(runner):
 
 
 # _format_describe shows (none) when spec has no hyperparameters.
-def test_format_describe_no_hyperparameters():
+def test_format_describe_no_hyperparameters(mocker):
     spec = AlgorithmSpec(
         algorithm="test-algo",
         variant="test",
@@ -256,13 +256,13 @@ def test_format_describe_no_hyperparameters():
         description="Test",
         graph_type="DAG",
     )
-    with patch.object(AlgorithmRegistry, "variants", return_value=["test"]):
-        output = _format_describe(spec)
+    mocker.patch.object(AlgorithmRegistry, "variants", return_value=["test"])
+    output = _format_describe(spec)
     assert "(none)" in output
 
 
 # _format_describe uses fallback type when HP not in registry.
-def test_format_describe_unknown_hyperparameter_uses_fallback():
+def test_format_describe_unknown_hyperparameter_uses_fallback(mocker):
     spec = AlgorithmSpec(
         algorithm="test-algo",
         variant="test",
@@ -271,23 +271,23 @@ def test_format_describe_unknown_hyperparameter_uses_fallback():
         graph_type="DAG",
         supported_hyperparameters={"unknown_hp"},
     )
-    with patch.object(AlgorithmRegistry, "variants", return_value=["test"]):
-        output = _format_describe(spec)
+    mocker.patch.object(AlgorithmRegistry, "variants", return_value=["test"])
+    output = _format_describe(spec)
     assert "unknown_hp" in output
 
 
 # _format_describe shows Variants line when algorithm has multiple variants.
-def test_format_describe_shows_variants_line():
+def test_format_describe_shows_variants_line(mocker):
     spec = AlgorithmRegistry.get_spec("hc", None)
-    with patch.object(
+    mocker.patch.object(
         AlgorithmRegistry, "variants", return_value=["bnlearn", "other"]
-    ):
-        output = _format_describe(spec)
+    )
+    output = _format_describe(spec)
     assert "Variants:" in output
 
 
 # _format_describe shows paper URL when paper_url is set on spec.
-def test_format_describe_shows_paper_url():
+def test_format_describe_shows_paper_url(mocker):
     spec = AlgorithmSpec(
         algorithm="test-algo",
         variant="test",
@@ -297,8 +297,8 @@ def test_format_describe_shows_paper_url():
         paper_ref="Author (2025) – A paper.",
         paper_url="https://doi.org/10.0000/test",
     )
-    with patch.object(AlgorithmRegistry, "variants", return_value=["test"]):
-        output = _format_describe(spec)
+    mocker.patch.object(AlgorithmRegistry, "variants", return_value=["test"])
+    output = _format_describe(spec)
     assert "https://doi.org/10.0000/test" in output
 
 
@@ -355,7 +355,7 @@ def test_build_template_context_no_limit_for_max_iterations():
 
 
 # _build_template_context uses dash for HPs with no default or display.
-def test_build_template_context_unknown_hp_uses_fallback():
+def test_build_template_context_unknown_hp_uses_fallback(mocker):
     spec = AlgorithmSpec(
         algorithm="test-algo",
         variant="test",
@@ -371,11 +371,9 @@ def test_build_template_context_unknown_hp_uses_fallback():
         description="Test",
         graph_type="DAG",
     )
-    with (
-        patch.object(AlgorithmRegistry, "variants", return_value=["test"]),
-        patch.object(AlgorithmRegistry, "get_spec", return_value=dummy),
-    ):
-        ctx = _build_template_context(spec, "")
+    mocker.patch.object(AlgorithmRegistry, "variants", return_value=["test"])
+    mocker.patch.object(AlgorithmRegistry, "get_spec", return_value=dummy)
+    ctx = _build_template_context(spec, "")
     assert ctx["hyperparameters"][0]["type"] == "?"
 
 
