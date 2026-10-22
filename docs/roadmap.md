@@ -31,6 +31,8 @@ knowledge guidance with the following commit sequence:
 1. ✅ Optimise data loading
 1. ✅ Data ordering and randomisation
 1. ✅ Add timeout parameter
+1. 🛣️ [Standardise and consolidate metadata](current_task.md)
+1. 🛣️ `learn_graph` should report correct graph type, and initial and final score.
 * 🛣️ Refactor large modules e.g. `workflow_action`, remove code from init.py1.
 * 🛣️ Support Python 3.10-14, with 3.12 as default, and badge as [![SPEC 0 — Minimum Supported Dependencies](https://img.shields.io/badge/SPEC-0-green?labelColor=%23004811&color=%235CA038)](https://scientific-python.org/specs/spec-0000/)
 ---

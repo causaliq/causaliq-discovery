@@ -45,10 +45,11 @@ as workflow action input fields:
 | `hyperparameters` | `dict` | No | Hyperparameter name/value pairs. |
 | `trace` | `str` | No | Path to a `.db` workflow cache receiving the execution trace as a typed `trace` object. Omit to produce no trace. |
 | `variable_types` | `str \| dict` | No | Network context file path or variable type mapping. |
-| `sample_size` | `int` | No | Number of rows to use from the input data. |
-| `knowledge` | `str` | No | Path to a knowledge JSON file. |
+| `sample_size` | `int \| list` | No | Number of rows to use from the input data. |
 | `randomise` | `list` | No | Randomisation options to apply. |
 | `seed` | `int` | No | Deterministic randomisation seed. |
+| `reference` | `str` | No | Reference network (`.xdsl` or `.dsc`) for `var_best`/`var_worst`. |
+| `timeout` | `float \| int` | No | Structure learning timeout in minutes (default 60). |
 
 The step's `output` cache holds one `dag` object per entry and the
 `trace` cache holds one `trace` object per entry, so each cache holds a
@@ -60,15 +61,21 @@ adding `trace` to a workflow that has already produced graphs.
 ### Metadata
 
 Each exported entry includes a schema version 2 `_meta.json` metadata
-file.  Its root elements are `schema_version`, `matrix_values`,
-`created_at` and `metadata`; the `metadata` element holds:
+file.  Its root elements are `schema_version`, `matrix_values` and
+`metadata`; the `metadata` element holds:
 
 | Block | Contents |
 |---|---|
-| `provenance` | Provider and action names, available package versions, action timestamps, duration and runtime environment. |
-| `inputs` | Effective action parameters.  Currently empty; `learn_graph` reports its run details in `result` until the values audit. |
-| `result` | The `learn_graph` outcome, including `status`, optional `error`, algorithm, variant, hyperparameters, sample size, graph counts, trace flag and measured timings. |
+| `provenance` | Provider and action names, available package versions, action start and elapsed times where recorded, and runtime environment. |
+| `parameters` | Every supported action parameter with defaults made explicit and `null` where unset: algorithm, variant, hyperparameters, sample size, input, output, trace, variable types, randomise, seed, reference and timeout. |
+| `result` | The `learn_graph` outcome: graph type for successful runs, `status`, optional `error`, `elapsed_algorithm` seconds, optional `variable_order`, and — at action level — `data_load_seconds` and the `outputs` directories. |
 | `history` | Metadata inherited from earlier producers.  Currently reserved and written as `{}`. |
+
+Counts and duplicate timings are not recorded: `num_runs`, `num_nodes`,
+`num_edges`, `elapsed_seconds`, `output_seconds`,
+`algorithm_total_seconds` and `output_total_seconds` are absent.  Use
+the learnt graph, provenance `elapsed` and `result.elapsed_algorithm`
+instead.
 
 The metadata does not contain an `objects` map.  Each exported cache
 entry contains exactly one typed object, identified by its filename

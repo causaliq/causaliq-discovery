@@ -78,19 +78,25 @@ caches.  There is no `objects` map in the metadata: the object filename
 identifies its type.
 
 `_meta.json` uses schema version 2.  Its root elements are
-`schema_version`, `matrix_values`, `created_at` and `metadata`.  The
+`schema_version`, `matrix_values` and `metadata`.  The
 `metadata` element contains four blocks:
 
 - `provenance` — the provider and action that produced the entry,
-  provider and workflow versions where available, timestamps, duration
-  and runtime environment.
-- `inputs` — the effective action parameters.  This is currently empty
-  while `learn_graph` reports its metadata in `result`; the planned
-  values audit will move input-like fields here.
-- `result` — the `learn_graph` outcome and run details, including
-  `status`, `error`, `algorithm`, `variant`, `hyperparameters`,
-  `sample_size`, `input`, `graph_type`, `num_nodes`, `num_edges`,
-  `trace`, `timeout` and the measured timings.
+  provider and workflow versions where available, action start and
+  elapsed times where recorded, and runtime environment.
+- `parameters` — every supported action parameter, with implied
+  defaults made explicit and `null` where a parameter has no value.
+  The keys are `algorithm`, `variant`, `hyperparameters`,
+  `sample_size`, `input`, `output`, `trace`, `variable_types`,
+  `randomise`, `seed`, `reference` and `timeout`.  For a matrix run
+  the action-level `sample_size` is the requested value (an integer, a
+  list or `null`), while each `_meta.json` records the effective
+  per-run integer.
+- `result` — the `learn_graph` outcome and run details: `graph_type`
+  for successful runs (omitted when no graph was produced), `status`,
+  optional `error`, `elapsed_algorithm` (seconds spent in the algorithm
+  call), optional `variable_order`, and — in action-level metadata
+  only — `data_load_seconds` and the list of `outputs` directories.
 - `history` — metadata inherited from earlier producers.  It is
   currently reserved and written as `{}`.
 

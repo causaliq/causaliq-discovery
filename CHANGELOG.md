@@ -21,14 +21,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   top-level `created_at`; the metadata block `inputs` is now `parameters`,
   and provenance uses `started` and `elapsed` instead of `started_at`,
   `finished_at` and `duration_seconds`.
+- **`learn_graph` metadata** - `learn_graph` now returns the explicit
+  `parameters`/`result` action metadata mapping.  `parameters` lists every
+  supported action parameter with implied defaults made explicit and
+  `null` where a parameter has no value; `result` holds only outcomes.
+  `randomise`, `seed` and `reference` moved to `parameters`, and
+  `algorithm_seconds` was renamed `elapsed_algorithm`.
 
 ### Deprecated
 - Nothing yet
 
 ### Removed
-- Nothing yet
+- **`learn_graph` metadata fields** - `num_runs`, `elapsed_seconds`,
+  `output_total_seconds`, `algorithm_total_seconds`, `num_nodes`,
+  `num_edges` and `output_seconds` are no longer recorded.  Use the
+  learnt graph, provenance `elapsed` and `result.elapsed_algorithm`
+  instead.
 
 ### Fixed
+- **`learn_graph` output parameter** - the effective `output` value is now
+  echoed into the `parameters` block when the workflow executor supplies the
+  destination through an open cache rather than the action inputs.
+- **`learn_graph` graph type** - `result.graph_type` is only recorded when a
+  graph was produced; failed runs omit it.
 - **Analysis dependency** - require `causaliq-analysis>=0.5.0.dev1`,
   which uses `ActionPattern.AGGREGATE`; 0.4.0 declares the removed
   `ActionPattern.UPDATE` and fails to import with `causaliq-core>=0.8.0.dev7`.
