@@ -78,7 +78,7 @@ def test_provider_required_inputs() -> None:
 # DiscoveryActionProvider outputs dict contains expected keys.
 def test_provider_outputs_keys() -> None:
     provider = DiscoveryActionProvider()
-    expected = {"num_runs", "status", "outputs"}
+    expected = {"status", "outputs"}
     assert expected.issubset(set(provider.outputs.keys()))
 
 
@@ -259,7 +259,7 @@ def test_validate_var_alpha_without_seed_ok() -> None:
     )
 
 
-# dry-run returns 'dry-run' status and num_runs=1 for single call.
+# dry-run returns 'dry-run' status and one planned output for single call.
 def test_dry_run_single_call_status() -> None:
     provider = DiscoveryActionProvider()
     status, metadata, objects = provider.run(
@@ -272,12 +272,12 @@ def test_dry_run_single_call_status() -> None:
         mode="dry-run",
     )
     assert status == "dry-run"
-    assert metadata["num_runs"] == 1
+    assert len(metadata["result"]["planned_outputs"]) == 1
     assert objects == []
 
 
-# dry-run returns num_runs equal to list length for matrix call.
-def test_dry_run_matrix_call_num_runs() -> None:
+# dry-run plans one output per sample_size entry for matrix call.
+def test_dry_run_matrix_call_planned_outputs() -> None:
     provider = DiscoveryActionProvider()
     status, metadata, objects = provider.run(
         "learn_graph",
@@ -290,7 +290,7 @@ def test_dry_run_matrix_call_num_runs() -> None:
         mode="dry-run",
     )
     assert status == "dry-run"
-    assert metadata["num_runs"] == 2
+    assert len(metadata["result"]["planned_outputs"]) == 2
     assert objects == []
 
 
@@ -308,7 +308,7 @@ def test_dry_run_matrix_planned_outputs_paths() -> None:
         },
         mode="dry-run",
     )
-    planned = metadata["planned_outputs"]
+    planned = metadata["result"]["planned_outputs"]
     assert len(planned) == 2
     assert all("sample_5" in p or "sample_8" in p for p in planned)
     assert all("tabu-stable" in p for p in planned)
@@ -328,8 +328,8 @@ def test_single_run_writes_output_files(tmp_path: Path) -> None:
         mode="run",
     )
     assert status == "success"
-    assert metadata["num_runs"] == 1
-    out_dir = Path(metadata["outputs"][0])
+    assert metadata["result"]["status"] == "ok"
+    out_dir = Path(metadata["result"]["outputs"][0])
     assert (out_dir / "graph.graphml").exists()
     assert (out_dir / "_meta.json").exists()
 
@@ -346,7 +346,7 @@ def test_single_run_output_dir_no_variant(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    out_dir = metadata["outputs"][0]
+    out_dir = metadata["result"]["outputs"][0]
     # Path ends with algorithm name only (no variant, no sample_n)
     assert out_dir.replace("\\", "/").endswith(f"{tmp_path.name}/hc-stable")
 
@@ -367,8 +367,8 @@ def test_matrix_run_creates_per_sample_directories(
         mode="run",
     )
     assert status == "success"
-    assert metadata["num_runs"] == 2
-    for out_dir in metadata["outputs"]:
+    assert len(metadata["result"]["outputs"]) == 2
+    for out_dir in metadata["result"]["outputs"]:
         assert (Path(out_dir) / "graph.graphml").exists()
         assert (Path(out_dir) / "_meta.json").exists()
 
@@ -388,7 +388,7 @@ def test_matrix_run_output_dirs_contain_sample_n(
         },
         mode="run",
     )
-    paths = metadata["outputs"]
+    paths = metadata["result"]["outputs"]
     assert any("sample_5" in p for p in paths)
     assert any("sample_8" in p for p in paths)
 
@@ -407,7 +407,7 @@ def test_matrix_run_with_variant_output_path(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    paths = metadata["outputs"]
+    paths = metadata["result"]["outputs"]
     for path in paths:
         normalised = path.replace("\\", "/")
         assert "/tabu-stable/causaliq/sample_" in normalised
@@ -697,15 +697,16 @@ def test_single_run_var_best_uses_reference(tmp_path: Path) -> None:
         mode="run",
     )
     assert status == "success", metadata
-    out_dir = Path(metadata["outputs"][0])
+    out_dir = Path(metadata["result"]["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
-    learn = saved["metadata"]["result"]
-    assert learn["randomise"] == ["var_best"]
-    assert learn["reference"] == str(ref)
+    learn_params = saved["metadata"]["parameters"]
+    learn_result = saved["metadata"]["result"]
+    assert learn_params["randomise"] == ["var_best"]
+    assert learn_params["reference"] == str(ref)
     # variable_order reflects the topological order used for learning.
-    assert len(learn["variable_order"]) == 5
-    assert set(learn["variable_order"]) == {"X", "Y", "Z", "U", "V"}
+    assert len(learn_result["variable_order"]) == 5
+    assert set(learn_result["variable_order"]) == {"X", "Y", "Z", "U", "V"}
 
 
 # _meta.json written by single run contains convention metadata payload.
@@ -720,12 +721,14 @@ def test_single_run_meta_json_content(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    meta_path = Path(metadata["result"]["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    assert saved["metadata"]["result"]["algorithm"] == "hc-stable"
+    assert saved["metadata"]["parameters"]["algorithm"] == "hc-stable"
+    assert saved["metadata"]["parameters"]["output"] == str(tmp_path)
+    assert saved["metadata"]["result"]["graph_type"] == "DAG"
     assert (meta_path.parent / "graph.graphml").exists()
-    elapsed = saved["metadata"]["result"]["elapsed_seconds"]
+    elapsed = saved["metadata"]["result"]["elapsed_algorithm"]
     assert isinstance(elapsed, float)
     assert elapsed >= 0.0
     # variable_order lists the data variables in their original order.
@@ -752,11 +755,12 @@ def test_db_output_returns_objects(tmp_path: Path) -> None:
         mode="run",
     )
     assert status == "success"
-    assert "outputs" not in metadata
-    assert metadata["algorithm"] == "hc-stable"
-    assert metadata["graph_type"] == "DAG"
-    assert isinstance(metadata["elapsed_seconds"], float)
-    assert metadata["elapsed_seconds"] >= 0.0
+    assert "outputs" not in metadata["result"]
+    assert metadata["parameters"]["algorithm"] == "hc-stable"
+    assert metadata["parameters"]["output"] == str(tmp_path / "learn.db")
+    assert metadata["result"]["graph_type"] == "DAG"
+    assert isinstance(metadata["result"]["elapsed_algorithm"], float)
+    assert metadata["result"]["elapsed_algorithm"] >= 0.0
     assert any(
         o["type"] == "dag"
         and o["format"] == "graphml"
@@ -798,9 +802,8 @@ def test_db_output_without_sample_size_with_trace(tmp_path: Path) -> None:
         mode="run",
     )
     assert status == "success"
-    assert metadata["num_runs"] == 1
-    assert isinstance(metadata["elapsed_seconds"], float)
-    assert metadata["elapsed_seconds"] >= 0.0
+    assert isinstance(metadata["result"]["elapsed_algorithm"], float)
+    assert metadata["result"]["elapsed_algorithm"] >= 0.0
     # The graph cache holds only the dag object
     assert [o["type"] for o in objects] == ["dag"]
     # The trace lives in its own typed cache
@@ -841,6 +844,28 @@ def test_cache_context_without_output_returns_objects() -> None:
     )
 
 
+# A workflow cache supplied by the context is echoed as the output path.
+def test_cache_context_records_output_path(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from causaliq_workflow.cache import WorkflowCache
+
+    provider = DiscoveryActionProvider()
+    cache_path = tmp_path / "learn.db"
+    with WorkflowCache(str(cache_path)) as cache:
+        context = SimpleNamespace(
+            mode="run", matrix={}, matrix_values={}, cache=cache
+        )
+        status, metadata, _ = provider.run(
+            "learn_graph",
+            {"input": _DISCRETE_CSV, "algorithm": "hc-stable"},
+            mode="run",
+            context=context,
+        )
+    assert status == "success"
+    assert metadata["parameters"]["output"] == str(cache_path)
+
+
 # Directory output writes trace object metadata in _meta.json when traced.
 def test_single_run_meta_json_includes_trace_object(tmp_path: Path) -> None:
     provider = DiscoveryActionProvider()
@@ -854,10 +879,12 @@ def test_single_run_meta_json_includes_trace_object(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    meta_path = Path(metadata["result"]["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
-    assert saved["metadata"]["result"]["trace"] is True
+    assert saved["metadata"]["parameters"]["trace"] == str(
+        tmp_path / "trace.db"
+    )
 
     assert (meta_path.parent / "trace.json").exists()
 
@@ -920,12 +947,12 @@ def test_single_run_without_trace_disabled(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    meta_path = Path(metadata["result"]["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
     assert not (meta_path.parent / "trace.json").exists()
-    learn = saved["metadata"]["result"]
-    assert learn["trace"] is False
+    learn = saved["metadata"]["parameters"]
+    assert learn["trace"] is None
 
 
 # A trace cache path enables tracing in directory output mode.
@@ -941,12 +968,12 @@ def test_single_run_trace_cache_path_enables_trace(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    meta_path = Path(metadata["result"]["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
     assert (meta_path.parent / "trace.json").exists()
-    learn = saved["metadata"]["result"]
-    assert learn["trace"] is True
+    learn = saved["metadata"]["parameters"]
+    assert learn["trace"] == str(tmp_path / "trace.db")
 
 
 # A trace cache written in cache mode holds one trace object per key.
@@ -998,7 +1025,7 @@ def test_db_output_without_trace_writes_no_cache(tmp_path: Path) -> None:
     )
     assert status == "success"
     assert [o["type"] for o in objects] == ["dag"]
-    assert metadata["trace"] is False
+    assert metadata["parameters"]["trace"] is None
     assert not trace_cache.exists()
 
 
@@ -1141,7 +1168,7 @@ def test_single_run_meta_json_has_ok_status(tmp_path: Path) -> None:
         },
         mode="run",
     )
-    meta_path = Path(metadata["outputs"][0]) / "_meta.json"
+    meta_path = Path(metadata["result"]["outputs"][0]) / "_meta.json"
     with open(meta_path) as f:
         saved = json.load(f)
     learn = saved["metadata"]["result"]
@@ -1172,14 +1199,44 @@ def test_failed_run_writes_meta_json_with_input_status(
     )
     assert status == "error"
     assert objects == []
-    out_dir = Path(metadata["outputs"][0])
+    out_dir = Path(metadata["result"]["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
     learn = saved["metadata"]["result"]
     assert learn["status"] == "input_error"
     assert "identical column names" in learn["error"]
     assert not (out_dir / "graph.graphml").exists()
-    assert metadata["status"] == "input_error"
+    assert metadata["result"]["status"] == "input_error"
+
+
+# Failed runs omit the graph type because no graph is produced.
+def test_failed_run_meta_json_omits_graph_type(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import causaliq_discovery
+    from causaliq_discovery.errors import LearningInputError
+
+    def failing_learn_graph(**kwargs: object) -> object:
+        raise LearningInputError("duplicate columns")
+
+    monkeypatch.setattr(causaliq_discovery, "learn_graph", failing_learn_graph)
+    provider = DiscoveryActionProvider()
+    _, metadata, _ = provider.run(
+        "learn_graph",
+        {
+            "input": _DISCRETE_CSV,
+            "algorithm": "hc-stable",
+            "output": str(tmp_path),
+        },
+        mode="run",
+    )
+    out_dir = Path(metadata["result"]["outputs"][0])
+    with open(out_dir / "_meta.json") as f:
+        saved = json.load(f)
+    learn = saved["metadata"]["result"]
+    assert "graph_type" not in learn
+    assert saved["metadata"]["parameters"]["output"] == str(tmp_path)
 
 
 # Timed-out run records the timeout status in _meta.json.
@@ -1208,7 +1265,7 @@ def test_failed_run_timeout_status(
         mode="run",
     )
     assert status == "error"
-    out_dir = Path(metadata["outputs"][0])
+    out_dir = Path(metadata["result"]["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
     learn = saved["metadata"]["result"]
@@ -1246,10 +1303,10 @@ def test_run_forwards_timeout_to_learn_graph(
     )
     assert status == "success"
     assert captured["timeout"] == 5
-    out_dir = Path(metadata["outputs"][0])
+    out_dir = Path(metadata["result"]["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
-    learn = saved["metadata"]["result"]
+    learn = saved["metadata"]["parameters"]
     assert learn["timeout"] == 5
 
 
@@ -1281,9 +1338,8 @@ def test_matrix_partial_failure_continues(
         mode="run",
     )
     assert status == "success"
-    assert metadata["num_runs"] == 2
-    assert len(metadata["outputs"]) == 2
-    for out_dir in metadata["outputs"]:
+    assert len(metadata["result"]["outputs"]) == 2
+    for out_dir in metadata["result"]["outputs"]:
         with open(Path(out_dir) / "_meta.json") as f:
             saved = json.load(f)
         learn = saved["metadata"]["result"]
@@ -1318,8 +1374,8 @@ def test_db_output_failure_returns_error_metadata(
     )
     assert status == "error"
     assert objects == []
-    assert metadata["status"] == "input_error"
-    assert "duplicate columns" in metadata["error"]
+    assert metadata["result"]["status"] == "input_error"
+    assert "duplicate columns" in metadata["result"]["error"]
 
 
 # Failed data loading records failure _meta.json for every run.
@@ -1336,9 +1392,9 @@ def test_data_load_failure_records_meta_json(tmp_path: Path) -> None:
         mode="run",
     )
     assert status == "error"
-    assert metadata["status"] == "internal_error"
-    assert len(metadata["outputs"]) == 2
-    for out_dir in metadata["outputs"]:
+    assert metadata["result"]["status"] == "internal_error"
+    assert len(metadata["result"]["outputs"]) == 2
+    for out_dir in metadata["result"]["outputs"]:
         with open(Path(out_dir) / "_meta.json") as f:
             saved = json.load(f)
         learn = saved["metadata"]["result"]
@@ -1361,8 +1417,8 @@ def test_db_output_data_load_failure(tmp_path: Path) -> None:
     )
     assert status == "error"
     assert objects == []
-    assert metadata["status"] == "internal_error"
-    assert "missing.csv" in metadata["error"]
+    assert metadata["result"]["status"] == "internal_error"
+    assert "missing.csv" in metadata["result"]["error"]
 
 
 # A single-run data-load failure writes one failure _meta.json.
@@ -1378,8 +1434,8 @@ def test_single_run_data_load_failure(tmp_path: Path) -> None:
         mode="run",
     )
     assert status == "error"
-    assert len(metadata["outputs"]) == 1
-    out_dir = Path(metadata["outputs"][0])
+    assert len(metadata["result"]["outputs"]) == 1
+    out_dir = Path(metadata["result"]["outputs"][0])
     with open(out_dir / "_meta.json") as f:
         saved = json.load(f)
     learn = saved["metadata"]["result"]
@@ -1388,78 +1444,81 @@ def test_single_run_data_load_failure(tmp_path: Path) -> None:
 
 # _build_action_metadata includes status and optional error for failure.
 def test_build_action_metadata_status_and_error() -> None:
-    from causaliq_discovery.workflow_action import _build_action_metadata
+    from causaliq_discovery.workflow_action import (
+        _build_action_metadata,
+        _build_shared_parameters,
+    )
 
     meta = _build_action_metadata(
-        input_path="data.csv",
         algorithm="hc-stable",
-        variant="causaliq",
         sample_size=100,
+        shared=_build_shared_parameters(
+            {"input": "data.csv", "timeout": 5}, None, "out"
+        ),
         result_metadata=None,
         user_hyperparameters={"score": "bic"},
-        graph_num_nodes=0,
-        graph_num_edges=0,
-        include_trace=False,
-        elapsed_seconds=1.0,
-        algorithm_seconds=0.5,
-        output_seconds=0.2,
+        variant="causaliq",
+        elapsed_algorithm=0.5,
         status="timeout",
         error="timed out",
     )
-    assert meta["status"] == "timeout"
-    assert meta["error"] == "timed out"
-    assert meta["hyperparameters"]["score"] == "bic"
-    assert meta["variant"] == "causaliq"
+    assert meta["result"]["status"] == "timeout"
+    assert meta["result"]["error"] == "timed out"
+    assert meta["parameters"]["hyperparameters"]["score"] == "bic"
+    assert meta["parameters"]["variant"] == "causaliq"
+    assert meta["result"]["elapsed_algorithm"] == 0.5
 
 
 # _build_action_metadata omits error and resolves from result metadata.
 def test_build_action_metadata_ok_status() -> None:
-    from causaliq_discovery.workflow_action import _build_action_metadata
+    from causaliq_discovery.workflow_action import (
+        _build_action_metadata,
+        _build_shared_parameters,
+    )
 
     meta = _build_action_metadata(
-        input_path="data.csv",
         algorithm="hc-stable",
-        variant=None,
         sample_size=100,
+        shared=_build_shared_parameters(
+            {"input": "data.csv", "timeout": 5}, None, "out"
+        ),
         result_metadata={
             "variant": "causaliq",
             "hyperparameters": {"score": "bic"},
+            "variable_order": ["x", "y"],
         },
         user_hyperparameters=None,
-        graph_num_nodes=8,
-        graph_num_edges=6,
-        include_trace=True,
-        elapsed_seconds=1.0,
-        algorithm_seconds=0.5,
-        output_seconds=0.2,
+        variant=None,
+        elapsed_algorithm=0.5,
         status="ok",
+        graph_type="DAG",
     )
-    assert meta["status"] == "ok"
-    assert "error" not in meta
-    assert meta["variant"] == "causaliq"
-    assert meta["num_nodes"] == 8
+    assert meta["result"]["status"] == "ok"
+    assert "error" not in meta["result"]
+    assert meta["parameters"]["variant"] == "causaliq"
+    assert meta["result"]["variable_order"] == ["x", "y"]
+    assert meta["result"]["graph_type"] == "DAG"
+    assert "num_nodes" not in meta["result"]
 
 
 # _build_action_metadata falls back to user values for unknown algorithms.
 def test_build_action_metadata_unknown_algorithm() -> None:
-    from causaliq_discovery.workflow_action import _build_action_metadata
+    from causaliq_discovery.workflow_action import (
+        _build_action_metadata,
+        _build_shared_parameters,
+    )
 
     meta = _build_action_metadata(
-        input_path="data.csv",
         algorithm="does-not-exist",
-        variant=None,
         sample_size=100,
+        shared=_build_shared_parameters({"input": "data.csv"}, None, None),
         result_metadata=None,
         user_hyperparameters={"score": "bic"},
-        graph_num_nodes=0,
-        graph_num_edges=0,
-        include_trace=False,
-        elapsed_seconds=1.0,
-        algorithm_seconds=0.5,
-        output_seconds=0.2,
+        variant=None,
+        elapsed_algorithm=0.5,
         status="input_error",
         error="unknown algorithm",
     )
-    assert meta["variant"] is None
-    assert meta["hyperparameters"] == {"score": "bic"}
-    assert meta["status"] == "input_error"
+    assert meta["parameters"]["variant"] is None
+    assert meta["parameters"]["hyperparameters"] == {"score": "bic"}
+    assert meta["result"]["status"] == "input_error"

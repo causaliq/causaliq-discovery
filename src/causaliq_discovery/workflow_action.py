@@ -303,28 +303,128 @@ def _resolve_run_parameters(
         return variant, hyperparameters or {}
 
 
-def _build_action_metadata(
-    *,
-    input_path: str,
+def _serialise_variable_types(
+    variable_types: Any,
+) -> Optional[Union[Dict[str, str], str]]:
+    """Return variable types in a JSON-serialisable form.
+
+    Args:
+        variable_types: Raw ``variable_types`` parameter value.
+
+    Returns:
+        A mapping of variable names to type names, a context file path,
+        or None when types are imputed from the data.
+    """
+    if isinstance(variable_types, dict):
+        return {key: item.value for key, item in variable_types.items()}
+    if isinstance(variable_types, str):
+        return variable_types
+    return None
+
+
+def _resolve_output_parameter(
+    parameters: Dict[str, Any],
+    context: Optional[WorkflowContext],
+) -> Optional[str]:
+    """Return the effective output parameter for action metadata.
+
+    Workflow caches receive the output destination through the open
+    cache rather than the action parameters, because the executor
+    removes ``output`` before executing a cache step.
+
+    Args:
+        parameters: Validated action parameters.
+        context: Optional workflow context holding an open cache.
+
+    Returns:
+        Output directory or workflow cache path, or None.
+    """
+    output = parameters.get("output")
+    if output is not None:
+        return str(output)
+    cache = getattr(context, "cache", None) if context is not None else None
+    db_path = getattr(cache, "db_path", None)
+    return None if db_path is None else str(db_path)
+
+
+def _build_shared_parameters(
+    parameters: Dict[str, Any],
+    trace_path: Optional[str],
+    output_path: Optional[str],
+) -> Dict[str, Any]:
+    """Return effective parameters shared by every matrix run.
+
+    Args:
+        parameters: Validated action parameters.
+        trace_path: Resolved trace workflow cache path, if any.
+        output_path: Resolved output directory or workflow cache path.
+
+    Returns:
+        Parameters shared by every run, with defaults made explicit.
+    """
+    return {
+        "input": parameters["input"],
+        "output": output_path,
+        "trace": trace_path,
+        "variable_types": _serialise_variable_types(
+            parameters.get("variable_types")
+        ),
+        "randomise": parameters.get("randomise"),
+        "seed": parameters.get("seed"),
+        "reference": parameters.get("reference"),
+        "timeout": parameters.get("timeout", DEFAULT_TIMEOUT_MINUTES),
+    }
+
+
+def _resolve_effective_run(
     algorithm: str,
     variant: Optional[str],
-    sample_size: Optional[int],
+    user_hyperparameters: Optional[Dict[str, Any]],
+    result_metadata: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Resolve the effective variant, hyperparameters and variable order.
+
+    Args:
+        algorithm: Structure learning algorithm name.
+        variant: Requested algorithm variant.
+        user_hyperparameters: User-supplied hyperparameters, used when
+            ``result_metadata`` is None.
+        result_metadata: Run metadata for successful runs, or None.
+
+    Returns:
+        Mapping of the effective variant, hyperparameters and variable
+        order for the run.
+    """
+    if result_metadata is None:
+        resolved_variant, hyperparameters = _resolve_run_parameters(
+            algorithm, variant, user_hyperparameters
+        )
+        return {
+            "variant": resolved_variant,
+            "hyperparameters": hyperparameters,
+            "variable_order": None,
+        }
+    return {
+        "variant": result_metadata.get("variant", variant),
+        "hyperparameters": result_metadata.get("hyperparameters", {}),
+        "variable_order": result_metadata.get("variable_order"),
+    }
+
+
+def _build_action_metadata(
+    *,
+    algorithm: str,
+    sample_size: Any,
+    shared: Dict[str, Any],
     result_metadata: Optional[Dict[str, Any]],
     user_hyperparameters: Optional[Dict[str, Any]],
-    graph_num_nodes: int,
-    graph_num_edges: int,
-    include_trace: bool,
-    elapsed_seconds: float,
-    algorithm_seconds: float,
-    output_seconds: float,
+    variant: Optional[str],
+    elapsed_algorithm: float,
     status: str,
     error: Optional[str] = None,
-    randomise: Optional[List[str]] = None,
-    seed: Optional[int] = None,
-    reference: Optional[str] = None,
-    timeout: Union[float, int] = DEFAULT_TIMEOUT_MINUTES,
+    graph_type: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build learn_graph metadata payload for workflow outputs.
+    """Build the parameters and result blocks for a learn_graph run.
 
     For successful runs the resolved variant and effective
     hyperparameters are taken from the run metadata; for failed runs
@@ -332,71 +432,138 @@ def _build_action_metadata(
     successful run's input arguments.
 
     Args:
-        input_path: Input data path.
         algorithm: Structure learning algorithm name.
-        variant: Requested algorithm variant.
-        sample_size: Sample size used for the run.
+        sample_size: Sample size for the run, or None for all rows.
+        shared: Effective parameters shared by every run in the action.
         result_metadata: Run metadata dict for successful runs, or
             None for failed runs.
         user_hyperparameters: User-supplied hyperparameters, used
             when ``result_metadata`` is None.
-        graph_num_nodes: Number of nodes in the learnt graph.
-        graph_num_edges: Number of edges in the learnt graph.
-        include_trace: Whether trace output was requested.
-        elapsed_seconds: Total seconds for the run.
-        algorithm_seconds: Seconds spent in the algorithm call.
-        output_seconds: Seconds spent writing outputs.
+        variant: Requested algorithm variant.
+        elapsed_algorithm: Seconds spent in the algorithm call.
         status: Learn status, one of ``ok``, ``timeout``, ``memout``,
             ``input_error`` or ``internal_error``.
         error: Failure explanation for failed runs.
-        randomise: Randomisation options applied to the run.
-        seed: Randomisation seed used for the run.
-        reference: Reference network path used for the run.
-        timeout: Structure learning timeout in minutes.
+        graph_type: Type of graph produced, or None when no graph was
+            produced.
 
     Returns:
-        Metadata dict for the learn_graph element of ``_meta.json``.
+        Action metadata with ``parameters`` and ``result`` blocks.
     """
-    if result_metadata is not None:
-        resolved_variant = result_metadata.get("variant", variant)
-        hyperparameters = result_metadata.get("hyperparameters", {})
-        randomise = result_metadata.get("randomise", randomise)
-        seed = result_metadata.get("seed", seed)
-        reference = result_metadata.get("reference", reference)
-        timeout = result_metadata.get("timeout", timeout)
-        variable_order = result_metadata.get("variable_order")
-    else:
-        resolved_variant, hyperparameters = _resolve_run_parameters(
-            algorithm, variant, user_hyperparameters
-        )
-        variable_order = None
-    meta: Dict[str, Any] = {
-        "algorithm": algorithm,
-        "variant": resolved_variant,
-        "hyperparameters": hyperparameters,
-        "sample_size": sample_size,
-        "input": input_path,
-        "graph_type": "DAG",
-        "num_nodes": graph_num_nodes,
-        "num_edges": graph_num_edges,
-        "trace": include_trace,
-        "timeout": timeout,
-        "status": status,
-        "elapsed_seconds": elapsed_seconds,
-        "algorithm_seconds": algorithm_seconds,
-        "output_seconds": output_seconds,
+    effective = _resolve_effective_run(
+        algorithm, variant, user_hyperparameters, result_metadata
+    )
+    return {
+        "parameters": _build_parameter_block(
+            algorithm=algorithm,
+            sample_size=sample_size,
+            shared=shared,
+            effective=effective,
+        ),
+        "result": _build_result_block(
+            status=status,
+            elapsed_algorithm=elapsed_algorithm,
+            graph_type=graph_type,
+            variable_order=effective["variable_order"],
+            error=error,
+        ),
     }
-    if randomise:
-        meta["randomise"] = list(randomise)
-    if seed is not None:
-        meta["seed"] = seed
-    if reference is not None:
-        meta["reference"] = reference
+
+
+def _build_parameter_block(
+    *,
+    algorithm: str,
+    sample_size: Any,
+    shared: Dict[str, Any],
+    effective: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Build the effective parameters block for a learn_graph run.
+
+    Args:
+        algorithm: Structure learning algorithm name.
+        sample_size: Sample size for the run, or None for all rows.
+        shared: Parameters shared by every run in the action.
+        effective: Resolved variant, hyperparameters and variable order.
+
+    Returns:
+        Parameters block with every supported action parameter present.
+    """
+    return {
+        "algorithm": algorithm,
+        "variant": effective["variant"],
+        "hyperparameters": effective["hyperparameters"],
+        "sample_size": sample_size,
+        **shared,
+    }
+
+
+def _build_result_block(
+    *,
+    status: str,
+    elapsed_algorithm: float,
+    graph_type: Optional[str],
+    variable_order: Optional[List[str]],
+    error: Optional[str],
+) -> Dict[str, Any]:
+    """Build the result block for a learn_graph run.
+
+    Args:
+        status: Learn status, one of ``ok``, ``timeout``, ``memout``,
+            ``input_error`` or ``internal_error``.
+        elapsed_algorithm: Seconds spent in the algorithm call.
+        graph_type: Type of graph produced, or None when no graph was
+            produced.
+        variable_order: Variable order supplied to the algorithm.
+        error: Failure explanation for failed runs.
+
+    Returns:
+        Result block for the run.
+    """
+    meta: Dict[str, Any] = {
+        "status": status,
+        "elapsed_algorithm": elapsed_algorithm,
+    }
+    if graph_type is not None:
+        meta["graph_type"] = graph_type
     if variable_order:
         meta["variable_order"] = list(variable_order)
     if error is not None:
         meta["error"] = error
     return meta
+
+
+def _merge_action_metadata(
+    target: Dict[str, Any],
+    source: Dict[str, Any],
+) -> None:
+    """Merge the blocks of one action metadata mapping into another.
+
+    Args:
+        target: Metadata mapping updated in place.
+        source: Metadata mapping whose block values take precedence.
+    """
+    for block in ("parameters", "result"):
+        target[block].update(source.get(block, {}))
+
+
+def _resolve_run_sizes(
+    sizes: Optional[List[int]],
+    use_cache_output: bool,
+) -> List[Optional[int]]:
+    """Return the sample size for each run.
+
+    Args:
+        sizes: Parsed sample sizes, or None for a single run.
+        use_cache_output: Whether output targets a workflow cache.
+
+    Returns:
+        One sample size per run; None selects all rows.
+    """
+    if use_cache_output:
+        return [None] if sizes is None else [sizes[0]]
+    if sizes is None:
+        return [None]
+    return [n for n in sizes]
 
 
 def _write_meta_json(
@@ -416,11 +583,12 @@ def _write_meta_json(
         algorithm: Structure learning algorithm name.
         variant: Algorithm variant name.
         sample_size: Sample size used for the run.
-        metadata: learn_graph metadata payload, including ``status``
-            and (for failed runs) ``error``.
+        metadata: Action metadata with ``parameters`` and ``result``
+            blocks, including ``status`` and (for failed runs)
+            ``error``.
         include_trace: Whether trace output was requested.  The flag is
-            recorded in the result block by the caller; this helper only
-            writes the directory metadata envelope.
+            recorded in the parameters block by the caller; this helper
+            only writes the directory metadata envelope.
         has_graph: Whether a graph was produced.  Failed runs write the
             same version 2 envelope, with the failure status in result.
     """
@@ -440,12 +608,20 @@ def _write_meta_json(
 
 
 def _metadata_envelope(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """Build the version 2 metadata envelope for a directory output."""
+    """Build the version 2 metadata envelope for a directory output.
+
+    Args:
+        metadata: Action metadata with ``parameters`` and ``result``
+            blocks.
+
+    Returns:
+        Version 2 envelope ready for ``_meta.json``.
+    """
     return build_metadata(
         provider="causaliq-discovery",
         action="learn_graph",
-        parameters={},
-        result=dict(metadata),
+        parameters=dict(metadata.get("parameters") or {}),
+        result=dict(metadata.get("result") or {}),
         provider_version=_provider_version(),
         environment=_environment_info(),
     )
@@ -470,39 +646,42 @@ def _environment_info() -> Optional[Dict[str, Any]]:
 
 def _build_action_summary_metadata(
     *,
-    run_sizes: List[Optional[int]],
     algorithm: str,
     variant: Optional[str],
+    sample_size: Any,
+    shared: Dict[str, Any],
+    user_hyperparameters: Optional[Dict[str, Any]],
     status: str,
-    total_start: float,
     data_load_seconds: float,
-    algorithm_total_seconds: float,
-    output_total_seconds: float,
 ) -> Dict[str, Any]:
     """Build the action-level metadata returned to the workflow.
 
     Args:
-        run_sizes: Sample sizes executed (one entry per run).
         algorithm: Structure learning algorithm name.
         variant: Requested algorithm variant.
+        sample_size: Requested sample size, or None for all rows.
+        shared: Effective parameters shared by every run in the action.
+        user_hyperparameters: User-supplied hyperparameters.
         status: Overall learn status for the action.
-        total_start: Wall-clock start time of the action.
         data_load_seconds: Seconds spent loading the input data.
-        algorithm_total_seconds: Total seconds in learn_graph calls.
-        output_total_seconds: Total seconds writing outputs.
 
     Returns:
-        Action-level metadata dict.
+        Action metadata with ``parameters`` and ``result`` blocks.
     """
+    effective = _resolve_effective_run(
+        algorithm, variant, user_hyperparameters, None
+    )
     return {
-        "num_runs": len(run_sizes),
-        "algorithm": algorithm,
-        "variant": variant,
-        "status": status,
-        "elapsed_seconds": round(perf_counter() - total_start, 6),
-        "data_load_seconds": round(data_load_seconds, 6),
-        "algorithm_total_seconds": round(algorithm_total_seconds, 6),
-        "output_total_seconds": round(output_total_seconds, 6),
+        "parameters": _build_parameter_block(
+            algorithm=algorithm,
+            sample_size=sample_size,
+            shared=shared,
+            effective=effective,
+        ),
+        "result": {
+            "status": status,
+            "data_load_seconds": round(data_load_seconds, 6),
+        },
     }
 
 
@@ -664,7 +843,6 @@ class DiscoveryActionProvider(CausalIQActionProvider):
 
     # Output specifications
     outputs = {
-        "num_runs": "Number of learn_graph calls executed",
         "status": "Execution status",
         "outputs": "List of output directory paths written",
     }
@@ -719,8 +897,8 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     ) -> "ActionResult":
         """Return informative dry-run result without executing.
 
-        Reports how many learn_graph calls would be made and what
-        output directories would be created.
+        Reports the effective parameters and the output directories
+        that would be created.
 
         Args:
             action: Action name ('learn_graph').
@@ -733,27 +911,28 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         variant: Optional[str] = parameters.get("variant")
         output_base: str = parameters.get("output", "")
         sizes = _parse_sample_sizes(parameters.get("sample_size"))
-        num_runs = len(sizes) if sizes is not None else 1
-        if sizes is not None:
-            planned = [
-                _build_output_dir(output_base, algorithm, variant, n)
-                for n in sizes
-            ]
-        else:
-            planned = [
-                _build_output_dir(output_base, algorithm, variant, None)
-            ]
-        return (
-            "dry-run",
-            {
-                "num_runs": num_runs,
-                "algorithm": algorithm,
-                "variant": variant,
-                "status": "dry-run",
-                "planned_outputs": planned,
-            },
-            [],
+        run_sizes = _resolve_run_sizes(sizes, use_cache_output=False)
+        planned = [
+            _build_output_dir(output_base, algorithm, variant, n)
+            for n in run_sizes
+        ]
+        shared = _build_shared_parameters(
+            parameters,
+            _trace_cache_path(parameters.get("trace")),
+            _resolve_output_parameter(parameters, None),
         )
+        metadata = _build_action_metadata(
+            algorithm=algorithm,
+            sample_size=sizes,
+            shared=shared,
+            result_metadata=None,
+            user_hyperparameters=parameters.get("hyperparameters"),
+            variant=variant,
+            elapsed_algorithm=0.0,
+            status="dry-run",
+        )
+        metadata["result"]["planned_outputs"] = planned
+        return ("dry-run", metadata, [])
 
     def _execute(
         self,
@@ -838,6 +1017,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         )
         trace_path = _trace_cache_path(parameters.get("trace"))
         include_trace = trace_path is not None
+        output_path = _resolve_output_parameter(parameters, context)
         variable_types = parameters.get("variable_types")
         randomise = parameters.get("randomise")
         seed = parameters.get("seed")
@@ -857,7 +1037,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 "'learn_graph' requires an 'output' directory."
             )
 
-        total_start = perf_counter()
+        shared = _build_shared_parameters(parameters, trace_path, output_path)
 
         # Load data once for efficient matrix execution.  The data is
         # cached per input path so each dataset is read once per
@@ -870,44 +1050,24 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             )
         except Exception as exc:
             return self._all_runs_failed(
-                output_base=output_base,
+                parameters=parameters,
+                trace_path=trace_path,
+                output_path=output_path,
                 sizes=sizes,
                 use_cache_output=use_cache_output,
-                input_path=input_path,
-                algorithm=algorithm,
-                variant=variant,
-                hyperparameters=hyperparameters,
-                include_trace=include_trace,
                 failure=classify_error(exc),
-                total_start=total_start,
                 data_load_start=data_load_start,
-                randomise=randomise,
-                seed=seed,
-                reference=reference,
-                timeout=timeout,
             )
         data_load_seconds = perf_counter() - data_load_start
 
         output_dirs: List[str] = []
         all_objects: List[Dict[str, Any]] = []
         cache_metadata: Dict[str, Any] = {}
-        algorithm_total_seconds = 0.0
-        output_total_seconds = 0.0
         num_succeeded = 0
         first_failure_status: Optional[str] = None
-
-        if use_cache_output:
-            if sizes is None:
-                run_sizes: List[Optional[int]] = [None]
-            else:
-                run_sizes = [sizes[0]]
-        elif sizes is None:
-            run_sizes = [None]
-        else:
-            run_sizes = [n for n in sizes]
+        run_sizes = _resolve_run_sizes(sizes, use_cache_output)
 
         for n in run_sizes:
-            run_start = perf_counter()
             if use_cache_output:
                 out_dir = ""
             else:
@@ -930,33 +1090,22 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 )
             except Exception as exc:
                 failure = classify_error(exc)
-                algorithm_seconds = perf_counter() - algorithm_start
-                algorithm_total_seconds += algorithm_seconds
+                elapsed_algorithm = perf_counter() - algorithm_start
                 if first_failure_status is None:
                     first_failure_status = failure.status
 
                 action_meta = _build_action_metadata(
-                    input_path=input_path,
                     algorithm=algorithm,
-                    variant=variant,
                     sample_size=n,
+                    shared=shared,
                     result_metadata=None,
                     user_hyperparameters=hyperparameters,
-                    graph_num_nodes=0,
-                    graph_num_edges=0,
-                    include_trace=include_trace,
-                    elapsed_seconds=0.0,
-                    algorithm_seconds=round(algorithm_seconds, 6),
-                    output_seconds=0.0,
+                    variant=variant,
+                    elapsed_algorithm=round(elapsed_algorithm, 6),
                     status=failure.status,
                     error=str(failure),
-                    randomise=randomise,
-                    seed=seed,
-                    reference=reference,
-                    timeout=timeout,
                 )
 
-                output_start = perf_counter()
                 if use_cache_output:
                     cache_metadata = action_meta
                 else:
@@ -971,37 +1120,21 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                         has_graph=False,
                     )
                     output_dirs.append(out_dir)
-                output_seconds = perf_counter() - output_start
-                run_elapsed = perf_counter() - run_start
-                output_total_seconds += output_seconds
-                action_meta["output_seconds"] = round(output_seconds, 6)
-                action_meta["elapsed_seconds"] = round(run_elapsed, 6)
                 continue
 
-            algorithm_seconds = perf_counter() - algorithm_start
-            algorithm_total_seconds += algorithm_seconds
+            elapsed_algorithm = perf_counter() - algorithm_start
             num_succeeded += 1
 
-            output_start = perf_counter()
-
             action_meta = _build_action_metadata(
-                input_path=input_path,
                 algorithm=algorithm,
-                variant=variant,
                 sample_size=n,
+                shared=shared,
                 result_metadata=result.metadata,
                 user_hyperparameters=hyperparameters,
-                graph_num_nodes=len(result.graph.nodes),
-                graph_num_edges=len(result.graph.edges),
-                include_trace=include_trace,
-                elapsed_seconds=0.0,
-                algorithm_seconds=round(algorithm_seconds, 6),
-                output_seconds=0.0,
+                variant=variant,
+                elapsed_algorithm=round(elapsed_algorithm, 6),
                 status=STATUS_OK,
-                randomise=randomise,
-                seed=seed,
-                reference=reference,
-                timeout=timeout,
+                graph_type="DAG",
             )
 
             if use_cache_output:
@@ -1017,19 +1150,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 )
                 if trace_path is not None and result.trace is not None:
                     _write_trace_cache(trace_path, context, result.trace)
-                output_seconds = perf_counter() - output_start
-                run_elapsed = perf_counter() - run_start
-                output_total_seconds += output_seconds
-                action_meta["output_seconds"] = round(output_seconds, 6)
-                action_meta["elapsed_seconds"] = round(run_elapsed, 6)
                 cache_metadata = action_meta
             else:
                 result.save(out_dir)
-                output_seconds = perf_counter() - output_start
-                run_elapsed = perf_counter() - run_start
-                output_total_seconds += output_seconds
-                action_meta["output_seconds"] = round(output_seconds, 6)
-                action_meta["elapsed_seconds"] = round(run_elapsed, 6)
                 _write_meta_json(
                     out_dir,
                     algorithm=algorithm,
@@ -1045,20 +1168,19 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             STATUS_OK if first_failure_status is None else first_failure_status
         )
         metadata = _build_action_summary_metadata(
-            run_sizes=run_sizes,
             algorithm=algorithm,
             variant=variant,
+            sample_size=sizes,
+            shared=shared,
+            user_hyperparameters=hyperparameters,
             status=learn_status,
-            total_start=total_start,
             data_load_seconds=data_load_seconds,
-            algorithm_total_seconds=algorithm_total_seconds,
-            output_total_seconds=output_total_seconds,
         )
         if use_cache_output:
-            metadata.update(cache_metadata)
+            _merge_action_metadata(metadata, cache_metadata)
             return (overall_status, metadata, all_objects)
 
-        metadata["outputs"] = output_dirs
+        metadata["result"]["outputs"] = output_dirs
         return (
             overall_status,
             metadata,
@@ -1068,21 +1190,13 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     def _all_runs_failed(
         self,
         *,
-        output_base: str,
+        parameters: Dict[str, Any],
+        trace_path: Optional[str],
+        output_path: Optional[str],
         sizes: Optional[List[int]],
         use_cache_output: bool,
-        input_path: str,
-        algorithm: str,
-        variant: Optional[str],
-        hyperparameters: Optional[Dict[str, Any]],
-        include_trace: bool,
         failure: LearningError,
-        total_start: float,
         data_load_start: float,
-        randomise: Optional[List[str]] = None,
-        seed: Optional[int] = None,
-        reference: Optional[str] = None,
-        timeout: Union[float, int] = DEFAULT_TIMEOUT_MINUTES,
     ) -> "ActionResult":
         """Record a shared input failure for every matrix run.
 
@@ -1092,36 +1206,28 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         (workflow cache output) with the failure status and error.
 
         Args:
-            output_base: Base output directory supplied by the caller.
+            parameters: Validated parameter values.
+            trace_path: Resolved trace workflow cache path, if any.
+            output_path: Resolved output directory or cache path.
             sizes: Parsed sample sizes, or None for a single run.
             use_cache_output: Whether output targets a workflow cache.
-            input_path: Input data path.
-            algorithm: Structure learning algorithm name.
-            variant: Requested algorithm variant.
-            hyperparameters: User-supplied hyperparameters.
-            include_trace: Whether trace output was requested.
             failure: Classified failure shared by all runs.
-            total_start: Wall-clock start time of the action.
             data_load_start: Wall-clock start time of data loading.
-            timeout: Structure learning timeout in minutes.
 
         Returns:
             Tuple of ("error", metadata, []).
         """
-        if use_cache_output:
-            run_sizes: List[Optional[int]] = (
-                [None] if sizes is None else [sizes[0]]
-            )
-        elif sizes is None:
-            run_sizes = [None]
-        else:
-            run_sizes = [n for n in sizes]
+        algorithm: str = parameters["algorithm"]
+        variant: Optional[str] = parameters.get("variant")
+        hyperparameters: Optional[Dict[str, Any]] = parameters.get(
+            "hyperparameters"
+        )
+        output_base = str(parameters.get("output", ""))
+        shared = _build_shared_parameters(parameters, trace_path, output_path)
+        run_sizes = _resolve_run_sizes(sizes, use_cache_output)
 
         output_dirs: List[str] = []
         cache_metadata: Dict[str, Any] = {}
-        algorithm_total_seconds = 0.0
-        output_total_seconds = 0.0
-
         for n in run_sizes:
             if use_cache_output:
                 out_dir = ""
@@ -1129,24 +1235,15 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                 out_dir = _build_output_dir(output_base, algorithm, variant, n)
 
             action_meta = _build_action_metadata(
-                input_path=input_path,
                 algorithm=algorithm,
-                variant=variant,
                 sample_size=n,
+                shared=shared,
                 result_metadata=None,
                 user_hyperparameters=hyperparameters,
-                graph_num_nodes=0,
-                graph_num_edges=0,
-                include_trace=include_trace,
-                elapsed_seconds=0.0,
-                algorithm_seconds=0.0,
-                output_seconds=0.0,
+                variant=variant,
+                elapsed_algorithm=0.0,
                 status=failure.status,
                 error=str(failure),
-                randomise=randomise,
-                seed=seed,
-                reference=reference,
-                timeout=timeout,
             )
 
             if use_cache_output:
@@ -1159,27 +1256,25 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     variant=variant,
                     sample_size=n,
                     metadata=action_meta,
-                    include_trace=include_trace,
+                    include_trace=trace_path is not None,
                     has_graph=False,
                 )
                 output_dirs.append(out_dir)
 
-        data_load_seconds = perf_counter() - data_load_start
         metadata = _build_action_summary_metadata(
-            run_sizes=run_sizes,
             algorithm=algorithm,
             variant=variant,
+            sample_size=sizes,
+            shared=shared,
+            user_hyperparameters=hyperparameters,
             status=failure.status,
-            total_start=total_start,
-            data_load_seconds=data_load_seconds,
-            algorithm_total_seconds=algorithm_total_seconds,
-            output_total_seconds=output_total_seconds,
+            data_load_seconds=perf_counter() - data_load_start,
         )
         if use_cache_output:
-            metadata.update(cache_metadata)
+            _merge_action_metadata(metadata, cache_metadata)
             return ("error", metadata, [])
 
-        metadata["outputs"] = output_dirs
+        metadata["result"]["outputs"] = output_dirs
         return ("error", metadata, [])
 
 
