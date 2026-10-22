@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Version 2 metadata** - directory `_meta.json` files now use the shared
-  schema version 2 envelope (`provenance`, `inputs`, `result`, `history`)
+  schema version 2 envelope (`provenance`, `parameters`, `result`, `history`)
   and no longer contain an `objects` map; object files identify their type.
-  Requires `causaliq-core>=0.8.0.dev7` and
-  `causaliq-workflow>=0.6.0.dev8`.
+  Requires `causaliq-core>=0.8.0.dev8` and
+  `causaliq-workflow>=0.6.0.dev9`.
+- **Standardised metadata fields** - `_meta.json` no longer records a
+  top-level `created_at`; the metadata block `inputs` is now `parameters`,
+  and provenance uses `started` and `elapsed` instead of `started_at`,
+  `finished_at` and `duration_seconds`.
 
 ### Deprecated
 - Nothing yet

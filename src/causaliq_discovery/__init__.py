@@ -13,7 +13,7 @@ from causaliq_discovery.registry import AlgorithmRegistry
 from causaliq_discovery.result import DiscoveryResult
 from causaliq_discovery.variable_type import VariableType
 
-__version__ = "0.2.0.dev0"
+__version__ = "0.2.0.dev1"
 __author__ = "CausalIQ"
 __email__ = "info@causaliq.org"
 

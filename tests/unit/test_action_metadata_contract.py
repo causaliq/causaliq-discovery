@@ -46,11 +46,11 @@ def _flat_metadata() -> Dict[str, Any]:
 def test_learn_graph_metadata_contract() -> None:
     """Test learn_graph metadata conforms to the version 2 contract."""
     flat = _flat_metadata()
-    envelope = _metadata_envelope(flat, "2026-10-21T12:00:00+00:00")
+    envelope = _metadata_envelope(flat)
 
     assert envelope["provenance"]["provider"] == "causaliq-discovery"
     assert envelope["provenance"]["action"] == "learn_graph"
-    assert envelope["inputs"] == {}
+    assert envelope["parameters"] == {}
     assert envelope["result"] == flat
     assert envelope["result"]["algorithm"] == "hc"
     assert envelope["result"]["variant"] == "stable"
@@ -74,8 +74,13 @@ def test_meta_json_uses_version_2_envelope(tmp_path: Path) -> None:
     saved = json.loads((tmp_path / "_meta.json").read_text(encoding="utf-8"))
 
     assert saved["schema_version"] == 2
+    assert "created_at" not in saved
     assert saved["metadata"]["provenance"]["provider"] == "causaliq-discovery"
     assert saved["metadata"]["provenance"]["action"] == "learn_graph"
+    assert "finished_at" not in saved["metadata"]["provenance"]
+    assert "started" in saved["metadata"]["provenance"]
+    assert "elapsed" in saved["metadata"]["provenance"]
+    assert saved["metadata"]["parameters"] == {}
     assert saved["metadata"]["result"] == flat
     assert "objects" not in saved
     assert "objects" not in saved["metadata"]

@@ -10,7 +10,6 @@ import importlib.metadata
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from io import StringIO
 from time import perf_counter
 from typing import (
@@ -425,8 +424,7 @@ def _write_meta_json(
         has_graph: Whether a graph was produced.  Failed runs write the
             same version 2 envelope, with the failure status in result.
     """
-    finished_at = datetime.now(timezone.utc).isoformat()
-    envelope = _metadata_envelope(metadata, finished_at)
+    envelope = _metadata_envelope(metadata)
     meta = {
         "schema_version": SCHEMA_VERSION,
         "matrix_values": {
@@ -434,7 +432,6 @@ def _write_meta_json(
             "variant": variant,
             "sample_size": sample_size,
         },
-        "created_at": finished_at,
         "metadata": envelope,
     }
     meta_path = os.path.join(output_dir, "_meta.json")
@@ -442,18 +439,14 @@ def _write_meta_json(
         json.dump(meta, f, indent=2)
 
 
-def _metadata_envelope(
-    metadata: Dict[str, Any],
-    finished_at: str,
-) -> Dict[str, Any]:
+def _metadata_envelope(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Build the version 2 metadata envelope for a directory output."""
     return build_metadata(
         provider="causaliq-discovery",
         action="learn_graph",
-        inputs={},
+        parameters={},
         result=dict(metadata),
         provider_version=_provider_version(),
-        finished_at=finished_at,
         environment=_environment_info(),
     )
 
