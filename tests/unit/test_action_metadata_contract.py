@@ -112,9 +112,9 @@ def test_result_block_omits_removed_metadata() -> None:
         assert key not in result
 
 
-# Unset parameters are recorded as null with explicit implied defaults.
-def test_parameters_use_nulls_for_unset_values() -> None:
-    """Test unset parameters are null except for implied defaults."""
+# Unset parameters are recorded as tokens or omitted, never as null.
+def test_parameters_use_tokens_for_defaults() -> None:
+    """Test unset parameters use implied defaults and are not null."""
     metadata = _build_action_metadata(
         algorithm="hc",
         sample_size=None,
@@ -128,17 +128,12 @@ def test_parameters_use_nulls_for_unset_values() -> None:
     )
     parameters = metadata["parameters"]
 
-    for key in (
-        "output",
-        "trace",
-        "variable_types",
-        "randomise",
-        "seed",
-        "reference",
-        "sample_size",
-    ):
-        assert parameters[key] is None
+    assert parameters["variable_types"] == "impute"
+    assert parameters["randomise"] == "no-randomise"
+    assert parameters["sample_size"] == "all"
     assert parameters["timeout"] == 60
+    for key in ("output", "trace", "seed", "reference"):
+        assert key not in parameters
     assert metadata["result"]["error"] == "failed"
 
 

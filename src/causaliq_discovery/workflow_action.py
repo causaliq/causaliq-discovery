@@ -76,6 +76,7 @@ else:
             required: bool = False
             default: Any = None
             type_hint: str = "Any"
+            choices: Any = None
 
         class ActionPattern:  # type: ignore[no-redef]
             CREATE = "create"
@@ -96,6 +97,11 @@ from causaliq_discovery.data_cache import load_cached_data  # noqa: E402
 from causaliq_discovery.errors import LearningError  # noqa: E402
 from causaliq_discovery.params import (  # noqa: E402
     DEFAULT_TIMEOUT_MINUTES,
+    RANDOMISE_CHOICES,
+    RANDOMISE_OFF,
+    SAMPLE_SIZE_ALL,
+    VARIABLE_TYPES_IMPUTE,
+    resolve_randomise,
     validate_randomise,
     validate_reference,
     validate_seed,
@@ -144,14 +150,15 @@ def _parse_sample_sizes(
     """Parse the sample_size parameter to a list of positive ints.
 
     Accepts a single positive integer, a list of positive integers,
-    or a stringified int/list produced by workflow templating.
-    Returns None when the input is None (meaning use all rows).
+    a stringified int/list produced by workflow templating, or the
+    ``"all"`` token meaning every row. Returns None when the input is
+    None or ``"all"``.
 
     Args:
-        sample_size: Raw parameter value — int, list[int], or None.
+        sample_size: Raw parameter value — int, list[int], str or None.
 
     Returns:
-        List of positive integers, or None when input is None.
+        List of positive integers, or None when every row is used.
 
     Raises:
         ActionValidationError: If any value is not a positive int.
@@ -165,8 +172,11 @@ def _parse_sample_sizes(
         [100]
         >>> _parse_sample_sizes(None) is None
         True
+        >>> _parse_sample_sizes("all") is None
+        True
     """
-    if sample_size is None:
+    token = sample_size.strip().lower() if isinstance(sample_size, str) else ""
+    if sample_size is None or token == SAMPLE_SIZE_ALL:
         return None
     if isinstance(sample_size, str):
         try:
@@ -322,6 +332,21 @@ def _serialise_variable_types(
     return None
 
 
+def _resolve_variable_types(variable_types: Any) -> Any:
+    """Return None when variable types are imputed from the data.
+
+    Args:
+        variable_types: Raw ``variable_types`` parameter value.
+
+    Returns:
+        None for the impute token, otherwise the value unchanged.
+    """
+    if isinstance(variable_types, str):
+        token = variable_types.strip().lower()
+        return None if token == VARIABLE_TYPES_IMPUTE else variable_types
+    return variable_types
+
+
 def _resolve_output_parameter(
     parameters: Dict[str, Any],
     context: Optional[WorkflowContext],
@@ -354,6 +379,10 @@ def _build_shared_parameters(
 ) -> Dict[str, Any]:
     """Return effective parameters shared by every matrix run.
 
+    Parameters that do not apply to this run are omitted rather than
+    recorded as null, so a parameter is either present with its
+    effective value or absent.
+
     Args:
         parameters: Validated action parameters.
         trace_path: Resolved trace workflow cache path, if any.
@@ -362,18 +391,62 @@ def _build_shared_parameters(
     Returns:
         Parameters shared by every run, with defaults made explicit.
     """
-    return {
+    shared: Dict[str, Any] = {
         "input": parameters["input"],
-        "output": output_path,
-        "trace": trace_path,
-        "variable_types": _serialise_variable_types(
+        "variable_types": _record_variable_types(
             parameters.get("variable_types")
         ),
-        "randomise": parameters.get("randomise"),
-        "seed": parameters.get("seed"),
-        "reference": parameters.get("reference"),
+        "randomise": _record_randomise(parameters.get("randomise")),
         "timeout": parameters.get("timeout", DEFAULT_TIMEOUT_MINUTES),
     }
+    if output_path is not None:
+        shared["output"] = output_path
+    if trace_path is not None:
+        shared["trace"] = trace_path
+    for name in ("seed", "reference"):
+        if parameters.get(name) is not None:
+            shared[name] = parameters[name]
+    return shared
+
+
+def _record_randomise(randomise: Any) -> Any:
+    """Return the recorded randomise value, using the off token if unset.
+
+    Args:
+        randomise: Raw ``randomise`` parameter value.
+
+    Returns:
+        The option list, or the off token when no randomisation applies.
+    """
+    if randomise is None or randomise == []:
+        return RANDOMISE_OFF
+    return randomise
+
+
+def _record_variable_types(variable_types: Any) -> Any:
+    """Return the recorded variable_types, using the impute token if unset.
+
+    Args:
+        variable_types: Raw ``variable_types`` parameter value.
+
+    Returns:
+        Serialised variable types, or the impute token when they are
+        inferred from the data.
+    """
+    serialised = _serialise_variable_types(variable_types)
+    return VARIABLE_TYPES_IMPUTE if serialised is None else serialised
+
+
+def _record_sample_size(sample_size: Any) -> Any:
+    """Return the recorded sample_size, using the all token for every row.
+
+    Args:
+        sample_size: Sample size for one run, or None for all rows.
+
+    Returns:
+        The sample size, or the all token.
+    """
+    return SAMPLE_SIZE_ALL if sample_size is None else sample_size
 
 
 def _resolve_effective_run(
@@ -492,7 +565,7 @@ def _build_parameter_block(
         "algorithm": algorithm,
         "variant": effective["variant"],
         "hyperparameters": effective["hyperparameters"],
-        "sample_size": sample_size,
+        "sample_size": _record_sample_size(sample_size),
         **shared,
     }
 
@@ -764,12 +837,13 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         "sample_size": ActionInput(
             name="sample_size",
             description=(
-                "Number of rows to use. Supply a list of values "
-                "(e.g., [500, 1000, 5000]) to run a matrix of "
-                "learn_graph calls, one per sample size."
+                "Number of rows to use, or 'all' for every row. "
+                "Supply a list of values (e.g., [500, 1000, 5000]) to "
+                "run a matrix of learn_graph calls, one per sample size."
             ),
             required=False,
-            type_hint="int or list[int]",
+            default=SAMPLE_SIZE_ALL,
+            type_hint="int, list[int] or str",
         ),
         "hyperparameters": ActionInput(
             name="hyperparameters",
@@ -794,21 +868,24 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             name="variable_types",
             description=(
                 "Variable type information as a dict mapping column "
-                "names to type values. If None, types are imputed "
+                "names to type values, or 'impute' to infer the types "
                 "from the data."
             ),
             required=False,
-            type_hint="dict[str, VariableType]",
+            default=VARIABLE_TYPES_IMPUTE,
+            type_hint="dict[str, VariableType] or str",
         ),
         "randomise": ActionInput(
             name="randomise",
             description=(
-                "List of randomisation options to apply to the input "
-                "data: var_order, var_alpha, var_best, var_worst, "
-                "var_names, row_order, row_sample."
+                "Randomisation to apply to the input data, or "
+                "'no-randomise' to apply none: var_order, var_alpha, "
+                "var_best, var_worst, var_names, row_order, row_sample."
             ),
             required=False,
-            type_hint="list[str]",
+            default=RANDOMISE_OFF,
+            choices=RANDOMISE_CHOICES,
+            type_hint="list[str] or str",
         ),
         "seed": ActionInput(
             name="seed",
@@ -882,8 +959,9 @@ class DiscoveryActionProvider(CausalIQActionProvider):
                     )
             randomise = parameters.get("randomise")
             validate_randomise(randomise)
-            validate_seed(parameters.get("seed"), randomise)
-            validate_reference(parameters.get("reference"), randomise)
+            options = resolve_randomise(randomise)
+            validate_seed(parameters.get("seed"), options)
+            validate_reference(parameters.get("reference"), options)
             validate_timeout(
                 parameters.get("timeout", DEFAULT_TIMEOUT_MINUTES)
             )
@@ -1018,8 +1096,10 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         trace_path = _trace_cache_path(parameters.get("trace"))
         include_trace = trace_path is not None
         output_path = _resolve_output_parameter(parameters, context)
-        variable_types = parameters.get("variable_types")
-        randomise = parameters.get("randomise")
+        variable_types = _resolve_variable_types(
+            parameters.get("variable_types")
+        )
+        randomise = resolve_randomise(parameters.get("randomise"))
         seed = parameters.get("seed")
         reference = parameters.get("reference")
         timeout = parameters.get("timeout", DEFAULT_TIMEOUT_MINUTES)

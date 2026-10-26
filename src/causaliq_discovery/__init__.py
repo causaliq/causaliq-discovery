@@ -8,12 +8,16 @@ import pandas as pd
 from causaliq_discovery.data_cache import load_cached_reference
 from causaliq_discovery.errors import LearningError
 from causaliq_discovery.input import apply_sampling, normalise_data
-from causaliq_discovery.params import DEFAULT_TIMEOUT_MINUTES, validate_all
+from causaliq_discovery.params import (
+    DEFAULT_TIMEOUT_MINUTES,
+    resolve_randomise,
+    validate_all,
+)
 from causaliq_discovery.registry import AlgorithmRegistry
 from causaliq_discovery.result import DiscoveryResult
 from causaliq_discovery.variable_type import VariableType
 
-__version__ = "0.2.0.dev1"
+__version__ = "0.1.0"
 __author__ = "CausalIQ"
 __email__ = "info@causaliq.org"
 
@@ -52,7 +56,7 @@ def learn_graph(
     sample_size: Optional[int] = None,
     variant: Optional[str] = None,
     knowledge: Optional[Any] = None,
-    randomise: Optional[List[str]] = None,
+    randomise: Optional[Union[str, List[str]]] = None,
     seed: Optional[int] = None,
     reference: Optional[str] = None,
     timeout: Union[float, int] = DEFAULT_TIMEOUT_MINUTES,
@@ -82,16 +86,15 @@ def learn_graph(
         knowledge: Knowledge object or JSON file path guiding the
             structure learning.  Not yet fully specified; defaults to
             None (data-only learning).
-        randomise: List of randomisation options to apply to the
-            input data.  Supported values: ``"var_order"``,
-            ``"var_alpha"``, ``"var_best"``, ``"var_worst"``,
-            ``"var_names"``, ``"row_order"`` and ``"row_sample"``.
-            Only one of ``var_order``, ``var_alpha``, ``var_best``
-            and ``var_worst`` may be specified.  ``var_best`` and
-            ``var_worst`` require ``reference``.  Randomising options
-            require ``seed``.  Randomisations are applied in the
-            legacy experiment order (rows, then names, then variable
-            order).
+        randomise: Randomisation options to apply to the input data, or
+            ``"no-randomise"`` (the default) to apply none.  Supported
+            values: ``"var_order"``, ``"var_alpha"``, ``"var_best"``,
+            ``"var_worst"``, ``"var_names"``, ``"row_order"`` and
+            ``"row_sample"``.  Only one of ``var_order``, ``var_alpha``,
+            ``var_best`` and ``var_worst`` may be specified.  ``var_best``
+            and ``var_worst`` require ``reference``.  Randomising options
+            require ``seed``.  Randomisations are applied in the legacy
+            experiment order (rows, then names, then variable order).
         seed: Deterministic randomisation seed (0–100).  Required
             when a randomising option is specified.
         reference: Path to a ground-truth reference network
@@ -130,6 +133,10 @@ def learn_graph(
         timeout=timeout,
     )
 
+    # The off token requests no randomisation; normalise it once so that
+    # every later caller sees a list of options or None.
+    options: Optional[List[str]] = resolve_randomise(randomise)
+
     # Validate algorithm and variant against registry.
     spec = AlgorithmRegistry.get_spec(algorithm, variant)
 
@@ -155,7 +162,7 @@ def learn_graph(
         # Load the reference network and derive the topological order
         # once when var_best/var_worst is requested.
         topo_order: Optional[Tuple[str, ...]] = None
-        active_randomise = set(randomise or [])
+        active_randomise = set(options or [])
         if active_randomise & {"var_best", "var_worst"}:
             assert reference is not None  # guaranteed by validate_reference
             reference_bn = load_cached_reference(reference)
@@ -167,7 +174,7 @@ def learn_graph(
                 )
             topo_order = tuple(reference_bn.dag.ordered_nodes())
 
-        apply_sampling(numpy_data, sample_size, randomise, seed, topo_order)
+        apply_sampling(numpy_data, sample_size, options, seed, topo_order)
 
         # Record the (possibly randomised) variable order supplied to
         # the algorithm before learning starts, since some algorithms
@@ -189,7 +196,7 @@ def learn_graph(
 
         # Run the algorithm via the adapter.
         converted = adapter.convert_input(
-            numpy_data, resolved_types, sample_size, randomise, seed
+            numpy_data, resolved_types, sample_size, options, seed
         )
         timeout_seconds = int(math.ceil(timeout * 60))
         raw_output = adapter.run(
@@ -203,8 +210,8 @@ def learn_graph(
             "hyperparameters": effective_hp,
             "timeout": timeout,
         }
-        if randomise:
-            metadata["randomise"] = list(randomise)
+        if options:
+            metadata["randomise"] = list(options)
         if seed is not None:
             metadata["seed"] = seed
         if reference is not None:

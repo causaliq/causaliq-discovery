@@ -9,8 +9,29 @@ import click
 from jinja2 import Environment, FileSystemLoader
 
 from causaliq_discovery import __version__, learn_graph
-from causaliq_discovery.params import DEFAULT_TIMEOUT_MINUTES
+from causaliq_discovery.params import DEFAULT_TIMEOUT_MINUTES, RANDOMISE_OFF
 from causaliq_discovery.registry import AlgorithmRegistry, AlgorithmSpec
+
+
+def _randomise_from_cli(values: tuple) -> Optional[List[str]]:
+    """Return the CLI randomise options, mapping the off token to none.
+
+    ``--randomise`` is a repeatable option, so the explicit default token
+    arrives as a one-item list.  It means "apply no randomisation", which
+    is the same state as omitting the option.
+
+    Args:
+        values: Option values supplied on the command line.
+
+    Returns:
+        List of randomisation options, or None when none are applied.
+    """
+    if not values:
+        return None
+    options = [str(item) for item in values]
+    if options == [RANDOMISE_OFF]:
+        return None
+    return options
 
 
 def _parse_hyperparameters(
@@ -141,7 +162,7 @@ def cli() -> None:
     help=(
         "Randomise aspect of the input data. Supported: var_order, "
         "var_alpha, var_best, var_worst, var_names, row_order, "
-        "row_sample. May be repeated."
+        "row_sample, or no-randomise (the default). May be repeated."
     ),
 )
 @click.option(
@@ -198,7 +219,7 @@ def learn_cmd(
       cqdisc learn -i data.csv -a hc -o results/ -r var_best \\
         -R reference.xdsl
     """
-    randomise_list = list(randomise) if randomise else None
+    randomise_list = _randomise_from_cli(randomise)
     try:
         learn_graph(
             data=input_path,

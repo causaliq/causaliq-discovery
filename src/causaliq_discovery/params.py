@@ -32,6 +32,38 @@ _RANDOMISING_RANDOMISE: frozenset = frozenset(
 # Default structure learning timeout in minutes when none is specified.
 DEFAULT_TIMEOUT_MINUTES = 60
 
+# Value that requests no randomisation. It is the declared default of the
+# workflow ``randomise`` parameter so that the default can be passed
+# explicitly, for example from a calling workflow.
+RANDOMISE_OFF = "no-randomise"
+
+# Value that requests every row in the input data.
+SAMPLE_SIZE_ALL = "all"
+
+# Value that requests variable types imputed from the data.
+VARIABLE_TYPES_IMPUTE = "impute"
+
+# Values accepted by the workflow ``randomise`` parameter, including the
+# option that requests no randomisation.
+RANDOMISE_OPTIONS: tuple = tuple(sorted(_VALID_RANDOMISE))
+RANDOMISE_CHOICES: tuple = (RANDOMISE_OFF, *RANDOMISE_OPTIONS)
+
+
+def resolve_randomise(randomise: Any) -> Any:
+    """Return the value to validate, mapping the off token to none.
+
+    Args:
+        randomise: Raw ``randomise`` value.
+
+    Returns:
+        None when the value requests no randomisation, otherwise the
+        value unchanged.
+    """
+    if isinstance(randomise, str):
+        token = randomise.strip().lower()
+        return None if token == RANDOMISE_OFF else randomise
+    return randomise
+
 
 def validate_data(
     data: Any,
@@ -215,19 +247,23 @@ def validate_randomise(randomise: Any) -> None:
     """Validate the randomise parameter.
 
     Args:
-        randomise: Value passed as the ``randomise`` argument.
+        randomise: Value passed as the ``randomise`` argument. The off
+            token (``no-randomise``) is accepted and means that no
+            randomisation is applied.
 
     Raises:
-        TypeError: If randomise is not None or a list of strings.
+        TypeError: If randomise is not the off token, None, or a list of
+            strings.
         ValueError: If any randomise value is not a supported
             option.
     """
+    randomise = resolve_randomise(randomise)
     if randomise is None:
         return
     if not isinstance(randomise, list):
         raise TypeError(
-            "'randomise' must be None or a list of strings; "
-            f"got {type(randomise).__name__}."
+            f"'randomise' must be None, '{RANDOMISE_OFF}' or a list of "
+            f"strings; got {type(randomise).__name__}."
         )
     for item in randomise:
         if not isinstance(item, str):
@@ -394,6 +430,7 @@ def validate_all(
     validate_sample_size(sample_size)
     validate_variant(variant)
     validate_randomise(randomise)
-    validate_seed(seed, randomise)
-    validate_reference(reference, randomise)
+    options = resolve_randomise(randomise)
+    validate_seed(seed, options)
+    validate_reference(reference, options)
     validate_timeout(timeout)

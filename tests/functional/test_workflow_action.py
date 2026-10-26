@@ -952,7 +952,8 @@ def test_single_run_without_trace_disabled(tmp_path: Path) -> None:
         saved = json.load(f)
     assert not (meta_path.parent / "trace.json").exists()
     learn = saved["metadata"]["parameters"]
-    assert learn["trace"] is None
+    assert "trace" not in learn
+    assert learn["randomise"] == "no-randomise"
 
 
 # A trace cache path enables tracing in directory output mode.
@@ -1025,7 +1026,7 @@ def test_db_output_without_trace_writes_no_cache(tmp_path: Path) -> None:
     )
     assert status == "success"
     assert [o["type"] for o in objects] == ["dag"]
-    assert metadata["parameters"]["trace"] is None
+    assert metadata["parameters"].get("trace") is None
     assert not trace_cache.exists()
 
 

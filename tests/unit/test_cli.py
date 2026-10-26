@@ -12,11 +12,30 @@ from causaliq_discovery.cli import (
     _build_template_context,
     _find_mkdocs,
     _format_describe,
+    _randomise_from_cli,
     _update_mkdocs_nav,
     cli,
     main,
 )
 from causaliq_discovery.registry import AlgorithmRegistry, AlgorithmSpec
+
+
+# No --randomise options means no randomisation.
+def test_randomise_from_cli_empty() -> None:
+    assert _randomise_from_cli(()) is None
+
+
+# The explicit off token means the same as omitting the option.
+def test_randomise_from_cli_off_token() -> None:
+    assert _randomise_from_cli(("no-randomise",)) is None
+
+
+# Real randomisation options are passed through as a list.
+def test_randomise_from_cli_options() -> None:
+    assert _randomise_from_cli(("var_best", "row_order")) == [
+        "var_best",
+        "row_order",
+    ]
 
 
 @pytest.fixture
