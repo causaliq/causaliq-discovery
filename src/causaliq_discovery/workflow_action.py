@@ -79,7 +79,8 @@ else:
             choices: Any = None
 
         class ActionPattern:  # type: ignore[no-redef]
-            CREATE = "create"
+            PRODUCE = "produce"
+            MAP = "map"
             AGGREGATE = "aggregate"
 
         class WorkflowContext:  # type: ignore[no-redef]
@@ -792,7 +793,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     supported_actions = {"learn_graph"}
 
     # Action patterns for workflow validation
-    action_patterns = {"learn_graph": ActionPattern.CREATE}
+    action_patterns = {"learn_graph": ActionPattern.PRODUCE}
 
     # Input specifications
     inputs = {
