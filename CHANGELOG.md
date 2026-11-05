@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead.
 
 ### Fixed
+- **bnlearn variant runtime** - the sample is now handed to R as a temporary
+  CSV datafile instead of generated R source literals. Literal serialisation
+  made the R parser build one vector per value, so runtime grew faster than
+  the sample size: an 8-variable discrete sample took 0.04 s to load at 1,000
+  rows but 54 s at 100,000 rows, and over an hour at 1,000,000 rows. The
+  same sample now loads in 0.2 s and 1.3 s respectively, and learnt graphs
+  are unchanged. Requires `causaliq-core>=0.8.0.dev13`.
 - **`learn_graph` output parameter** - the effective `output` value is now
   echoed into the `parameters` block when the workflow executor supplies the
   destination through an open cache rather than the action inputs.

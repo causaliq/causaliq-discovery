@@ -2,7 +2,9 @@
 
 import math
 import subprocess
-from typing import Any, Dict, List, Optional, Tuple
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -27,6 +29,21 @@ from causaliq_discovery.variable_type import VariableType
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+# Remove temporary datafiles created by convert_input under test.
+@pytest.fixture(autouse=True)
+def _clean_temp_datafiles() -> Iterator[None]:
+    before = set(Path(tempfile.gettempdir()).glob("causaliq_*.csv"))
+    yield
+    for path in set(Path(tempfile.gettempdir()).glob("causaliq_*.csv")):
+        if path not in before:
+            path.unlink(missing_ok=True)
+
+
+def _datafile_header(data_file: str) -> str:
+    """Return the header line of a written CSV datafile."""
+    return Path(data_file).read_text(encoding="utf-8").splitlines()[0]
 
 
 class _MockData:
@@ -207,7 +224,16 @@ def test_convert_input_returns_r_data_code() -> None:
     data = _continuous_data()
     result = adapter.convert_input(data, None, None, None, None)
     assert "r_data_code" in result
-    assert "data.frame" in result["r_data_code"]
+    assert "read.csv" in result["r_data_code"]
+
+
+# convert_input writes a datafile and records its path.
+def test_convert_input_writes_data_file() -> None:
+    adapter = BnlearnAdapter()
+    data = _continuous_data()
+    result = adapter.convert_input(data, None, None, None, None)
+    assert Path(result["data_file"]).is_file()
+    assert result["r_data_code"].startswith("df <- read.csv(")
 
 
 # convert_input stores dstype from data object.
@@ -234,9 +260,32 @@ def test_convert_input_uses_process_order() -> None:
     data = _MockData(sample, ("A", "B"), "continuous", order=(1, 0))
     result = adapter.convert_input(data, None, None, None, None)
     assert result["nodes"] == ["B", "A"]
-    # R code columns follow the process order.
-    body = result["r_data_code"]
-    assert body.index("`B`") < body.index("`A`")
+    # Datafile columns follow the process order.
+    assert _datafile_header(result["data_file"]) == "B,A"
+
+
+# convert_input emits a datafile path R can read on any platform.
+def test_convert_input_datafile_path_uses_forward_slashes() -> None:
+    adapter = BnlearnAdapter()
+    data = _continuous_data()
+    result = adapter.convert_input(data, None, None, None, None)
+    assert "\\" not in result["r_data_code"]
+
+
+# convert_input keeps column names verbatim in R.
+def test_convert_input_preserves_column_names() -> None:
+    adapter = BnlearnAdapter()
+    data = _continuous_data()
+    result = adapter.convert_input(data, None, None, None, None)
+    assert "check.names = FALSE" in result["r_data_code"]
+
+
+# convert_input maps continuous columns to numeric R classes.
+def test_convert_input_continuous_uses_numeric_col_classes() -> None:
+    adapter = BnlearnAdapter()
+    data = _continuous_data()
+    result = adapter.convert_input(data, None, None, None, None)
+    assert 'c("numeric", "numeric")' in result["r_data_code"]
 
 
 # convert_input stores number of rows.
@@ -247,7 +296,7 @@ def test_convert_input_stores_n_rows() -> None:
     assert result["n_rows"] == 7
 
 
-# convert_input maps DISCRETE VariableType to as.factor R code.
+# convert_input maps DISCRETE VariableType to factor colClasses.
 def test_convert_input_discrete_variable_uses_factor() -> None:
     adapter = BnlearnAdapter()
     data = _discrete_data()
@@ -256,10 +305,10 @@ def test_convert_input_discrete_variable_uses_factor() -> None:
         "Y": VariableType.DISCRETE,
     }
     result = adapter.convert_input(data, vt, None, None, None)
-    assert "as.factor" in result["r_data_code"]
+    assert 'c("factor", "factor")' in result["r_data_code"]
 
 
-# convert_input maps BINARY VariableType to as.factor R code.
+# convert_input maps BINARY VariableType to factor colClasses.
 def test_convert_input_binary_variable_uses_factor() -> None:
     adapter = BnlearnAdapter()
     rng = np.random.default_rng(2)
@@ -267,7 +316,20 @@ def test_convert_input_binary_variable_uses_factor() -> None:
     data = _MockData(sample, ("Z",), "categorical")
     vt = {"Z": VariableType.BINARY}
     result = adapter.convert_input(data, vt, None, None, None)
-    assert "as.factor" in result["r_data_code"]
+    assert 'c("factor")' in result["r_data_code"]
+
+
+# convert_input code size stays constant as the sample grows.
+def test_convert_input_code_size_independent_of_rows() -> None:
+    adapter = BnlearnAdapter()
+    small = adapter.convert_input(
+        _continuous_data(n_rows=10), None, None, None, None
+    )
+    large = adapter.convert_input(
+        _continuous_data(n_rows=50000), None, None, None, None
+    )
+    assert len(large["r_data_code"]) == len(small["r_data_code"])
+    assert len(large["r_data_code"]) < 500
 
 
 # ---------------------------------------------------------------------------
@@ -504,6 +566,45 @@ def test_run_returns_correct_dict_structure(mocker: Any) -> None:
     assert set(result.keys()) == {"stdout", "algorithm", "nodes"}
     assert result["algorithm"] == "hc"
     assert result["nodes"] == ["A", "B"]
+
+
+# run deletes the temporary datafile once R has finished.
+def test_run_deletes_data_file(mocker: Any) -> None:
+    mocker.patch(
+        "causaliq_discovery.algorithms.bnlearn.run_r_script",
+        return_value="---ARCS---\n",
+    )
+    tmp = Path(tempfile.gettempdir()) / "causaliq_run_delete.csv"
+    tmp.write_text("A\n1\n", encoding="utf-8")
+    converted = _make_converted()
+    converted["data_file"] = str(tmp)
+    BnlearnAdapter().run(converted, "hc", {})
+    assert not tmp.exists()
+
+
+# run deletes the temporary datafile when R fails.
+def test_run_deletes_data_file_on_error(mocker: Any) -> None:
+    mocker.patch(
+        "causaliq_discovery.algorithms.bnlearn.run_r_script",
+        side_effect=RRuntimeError("boom"),
+    )
+    tmp = Path(tempfile.gettempdir()) / "causaliq_run_error.csv"
+    tmp.write_text("A\n1\n", encoding="utf-8")
+    converted = _make_converted()
+    converted["data_file"] = str(tmp)
+    with pytest.raises(RRuntimeError):
+        BnlearnAdapter().run(converted, "hc", {})
+    assert not tmp.exists()
+
+
+# run works when no datafile was written.
+def test_run_without_data_file(mocker: Any) -> None:
+    mocker.patch(
+        "causaliq_discovery.algorithms.bnlearn.run_r_script",
+        return_value="---ARCS---\n",
+    )
+    result = BnlearnAdapter().run(_make_converted(), "hc", {})
+    assert result["algorithm"] == "hc"
 
 
 # ---------------------------------------------------------------------------

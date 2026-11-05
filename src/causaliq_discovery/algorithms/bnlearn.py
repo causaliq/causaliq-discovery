@@ -1,15 +1,19 @@
 """BnlearnAdapter: PackageAdapter wrapping bnlearn R algorithms."""
 
 import math
+import os
 import re
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 from causaliq_core.graph import DAG, PDAG, SDG
 from causaliq_core.r import (
-    data_to_r_dataframe,
+    datafile_to_r_code,
     r_arcs_to_edges,
     run_r_script,
+    write_r_datafile,
 )
 from causaliq_data import Data
 
@@ -98,13 +102,20 @@ class BnlearnAdapter(PackageAdapter):
         randomise: Optional[list],
         seed: Optional[int],
     ) -> Dict[str, Any]:
-        """Convert Data to an R data.frame code string.
+        """Write the sample to a temporary CSV and build reading R code.
 
-        Generates R source code that creates a data.frame using
-        ``causaliq_core.r.data_to_r_dataframe``.  Categorical
-        columns become R factors; continuous columns become numeric
-        vectors.  Normalisation and sampling are applied by
-        ``learn_graph`` before this method is called.
+        The sample is written to a uniquely named CSV datafile and the
+        returned ``r_data_code`` reads it back with ``read.csv``.
+        Categorical columns become R factors and continuous columns
+        become numeric vectors.  Handing the data over as a datafile
+        keeps R's cost linear in the sample size: serialising values
+        as R source code makes the R parser build one vector per
+        value, which is orders of magnitude slower for large samples.
+        Normalisation and sampling are applied by ``learn_graph``
+        before this method is called.
+
+        The caller owns the datafile; :meth:`run` deletes it once the
+        R script has finished.
 
         Args:
             data: Input data as a CausalIQ NumPy Data object.
@@ -116,7 +127,9 @@ class BnlearnAdapter(PackageAdapter):
 
         Returns:
             Dict with keys:
-            ``r_data_code``: R source that creates the data.frame.
+            ``r_data_code``: R source that reads the datafile into
+            ``df``.
+            ``data_file``: Full path of the temporary CSV datafile.
             ``dstype``: Dataset type, ``"continuous"`` or
             ``"categorical"``.
             ``nodes``: Ordered list of node names.
@@ -132,14 +145,13 @@ class BnlearnAdapter(PackageAdapter):
             )
             for col in columns
         }
-        r_data_code = data_to_r_dataframe(
-            sample=ordered_sample,
-            columns=columns,
-            node_types=node_types,
-            varname=_DATA_VARNAME,
+        data_file = _write_temp_datafile(ordered_sample, columns)
+        r_data_code = datafile_to_r_code(
+            data_file, columns, node_types, varname=_DATA_VARNAME
         )
         return {
             "r_data_code": r_data_code,
+            "data_file": data_file,
             "dstype": data.dstype,
             "nodes": columns,
             "n_rows": data.N,
@@ -165,6 +177,9 @@ class BnlearnAdapter(PackageAdapter):
         When ``trace=True``, bnlearn's ``debug=TRUE`` output is
         captured in stdout before the arcs sentinel, allowing
         ``build_trace`` to parse the score steps.
+
+        The temporary datafile created by ``convert_input`` is deleted
+        once the R script has finished, whether it succeeded or not.
 
         Args:
             converted_data: Dict returned by convert_input.
@@ -224,7 +239,11 @@ class BnlearnAdapter(PackageAdapter):
             params=params,
             debug=trace,
         )
-        stdout = run_r_script(script, timeout=timeout or 60)
+        data_file: Optional[str] = converted_data.get("data_file")
+        try:
+            stdout = run_r_script(script, timeout=timeout or 60)
+        finally:
+            _remove_datafile(data_file)
         return {
             "stdout": stdout,
             "algorithm": algorithm,
@@ -320,6 +339,45 @@ class BnlearnAdapter(PackageAdapter):
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+
+def _write_temp_datafile(sample: Any, columns: List[str]) -> str:
+    """Write the sample to a uniquely named temporary CSV datafile.
+
+    Args:
+        sample: Ordered sample as a 2-D NumPy array, shape
+            (n_rows, n_columns).
+        columns: Column names in sample order.
+
+    Returns:
+        Full path of the temporary CSV file.
+
+    Raises:
+        OSError: If the file cannot be created or written.
+    """
+    handle, path = tempfile.mkstemp(prefix="causaliq_", suffix=".csv")
+    os.close(handle)
+    try:
+        write_r_datafile(sample, columns, path)
+    except Exception:
+        _remove_datafile(path)
+        raise
+    return path
+
+
+def _remove_datafile(path: Optional[str]) -> None:
+    """Delete a temporary datafile, ignoring a missing file.
+
+    Args:
+        path: Full path of the datafile, or None when no datafile was
+            written.
+    """
+    if path is None:
+        return
+    try:
+        Path(path).unlink(missing_ok=True)
+    except OSError:  # pragma: no cover - file lock race on Windows
+        pass
 
 
 def _r_literal(value: Any) -> str:

@@ -7,7 +7,9 @@ when R or the bnlearn package is unavailable.
 Mark: ``@pytest.mark.r_integration``
 """
 
-from typing import Optional, Tuple
+import tempfile
+from pathlib import Path
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -15,6 +17,19 @@ from causaliq_core.r import run_r_script
 
 from causaliq_discovery.algorithms.bnlearn import BnlearnAdapter
 from causaliq_discovery.variable_type import VariableType
+
+# Directory holding the temporary datafiles written for each test.
+_TEMP_DIR = Path(tempfile.gettempdir())
+
+
+# Remove temporary datafiles created by convert_input under test.
+@pytest.fixture(autouse=True)
+def _clean_temp_datafiles() -> Iterator[None]:
+    before = set(_TEMP_DIR.glob("causaliq_*.csv"))
+    yield
+    for path in set(_TEMP_DIR.glob("causaliq_*.csv")):
+        if path not in before:
+            path.unlink(missing_ok=True)
 
 
 class _MockData:
