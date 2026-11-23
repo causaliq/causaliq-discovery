@@ -1,27 +1,12 @@
-# Consolidate and standardise metadata for `learn_graph` action
+# Investigate slow bnlearn performance
 
-Please make these changes for the `learn_graph` metadata (it is envisaged this should only touch causaliq-discovery code)
+I am running workflow @causaliq-research/papers/variable-ordering/workflows/var-ordering.yml
+on causaliq-research, which in turn runs bnsl.yml and bnsl-norandomise.yml which in turn
+should run the hc algorithm of bnlearn.
 
-## Following metadata items should be removed altogether
+I am finding the execution time is growing wildly with sample size - so
+that it may be over an hour wth sample sizes over 100,000 rows. Running what in theory
+is the same algorithm through the legacy code base, it completes in under 1 second
+for all sample sizes upto and including 1,000,000.
 
-* `num_runs` 
-* `elapsed_seconds` 
-* `output_total_seconds` 
-* `algorithm_total_seconds`
-* `num_nodes`
-* `num_edges` 
-* `output_seconds`
-
-## Move metadata items from `result` to `parameters`
-
-* `algorithm` 
-* `variant` 
-* `hyperparameters`
-* `sample_size` 
-* `input`
-* `trace`
-* `timeout`
-
-## Metadata items that should be renamed
-
-* `algorithm_seconds` -> `elapsed_algorithm` 
+Can you investigate what is happening?

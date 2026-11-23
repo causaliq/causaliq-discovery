@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `null` where a parameter has no value; `result` holds only outcomes.
   `randomise`, `seed` and `reference` moved to `parameters`, and
   `algorithm_seconds` was renamed `elapsed_algorithm`.
+- Python 3.14 is now supported and tested in CI, and the default development
+  interpreter is Python 3.12.
 
 ### Deprecated
 - Nothing yet
@@ -37,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `num_edges` and `output_seconds` are no longer recorded.  Use the
   learnt graph, provenance `elapsed` and `result.elapsed_algorithm`
   instead.
+- Python 3.9 support: `requires-python` is now `>=3.10`, and the development
+  environments, CI matrix and generated scripts cover Python 3.10 to 3.14.
 
 ### Fixed
 - **bnlearn variant runtime** - the sample is now handed to R as a temporary
