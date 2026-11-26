@@ -44,12 +44,18 @@ as workflow action input fields:
 | `variant` | `str` | No | Algorithm variant (defaults to first registered). |
 | `hyperparameters` | `dict` | No | Hyperparameter name/value pairs. |
 | `trace` | `str` | No | Path to a `.db` workflow cache receiving the execution trace as a typed `trace` object. Omit to produce no trace. |
-| `variable_types` | `str \| dict` | No | Network context file path or variable type mapping. |
-| `sample_size` | `int \| list` | No | Number of rows to use from the input data. |
-| `randomise` | `list` | No | Randomisation options to apply. |
-| `seed` | `int` | No | Deterministic randomisation seed. |
-| `reference` | `str` | No | Reference network (`.xdsl` or `.dsc`) for `var_best`/`var_worst`. |
+| `variable_types` | `str \| dict` | No | Network context file path, variable type mapping, or `impute` (default) to infer types from the data. |
+| `sample_size` | `int \| list` | No | Number of rows to use from the input data, or `all` (default) for every row. |
+| `randomise` | `list` | No | Randomisation options to apply, or `no-randomise` (default) to apply none. |
+| `seed` | `int` | No | Deterministic randomisation seed. Required when a randomising option is applied; omitted otherwise. |
+| `reference` | `str` | No | Reference network (`.xdsl` or `.dsc`) for `var_best`/`var_worst`. Omitted when not needed. |
 | `timeout` | `float \| int` | No | Structure learning timeout in minutes (default 60). |
+
+Omitting an input applies its default, and omitting is also how an input
+that does not apply is expressed.  A default with a natural explicit
+spelling is exposed as a value (`no-randomise`, `all`, `impute`), so a
+caller can pin it, filter on it, or pass it through to a called workflow.
+A literal `null` is rejected: omit the field instead.
 
 The step's `output` cache holds one `dag` object per entry and the
 `trace` cache holds one `trace` object per entry, so each cache holds a
@@ -67,7 +73,7 @@ file.  Its root elements are `schema_version`, `matrix_values` and
 | Block | Contents |
 |---|---|
 | `provenance` | Provider and action names, available package versions, action start and elapsed times where recorded, and runtime environment. |
-| `parameters` | Every supported action parameter with defaults made explicit and `null` where unset: algorithm, variant, hyperparameters, sample size, input, output, trace, variable types, randomise, seed, reference and timeout. |
+| `parameters` | The effective parameters of the run: values supplied plus the defaults that applied, with `no-randomise`, `all` and `impute` used for the defaulted states. Inputs that do not apply are absent rather than `null`. Covers algorithm, variant, hyperparameters, sample size, input, output, trace, variable types, randomise, seed, reference and timeout. |
 | `result` | The `learn_graph` outcome: graph type for successful runs, `status`, optional `error`, `elapsed_algorithm` seconds, optional `variable_order`, and — at action level — `data_load_seconds` and the `outputs` directories. |
 | `history` | Metadata inherited from earlier producers.  Currently reserved and written as `{}`. |
 

@@ -36,10 +36,19 @@ See [Adding Algorithms](adding-algorithms.md) for a step-by-step guide.
 Each algorithm can have multiple variants backed by different
 packages.  For example, `hc` and `tabu` have both a `causaliq` variant
 (backed by the CausalIQ native `hc()` function) and a `bnlearn` variant
-(backed by the R `bnlearn` package via `rpy2`).
+(backed by the R `bnlearn` package via an `Rscript` subprocess).
 
 The `causaliq` variant is registered first and is therefore the default.
 The `bnlearn` variant remains available by passing `variant="bnlearn"`.
+
+Data reaches R through a temporary CSV datafile rather than as generated
+R source code: copying a sample into R literals makes the R parser build
+one vector per value, so runtime grows faster than the sample size
+(54 s to load a 100,000 row discrete sample, against 0.2 s via
+`read.csv`).  `BnlearnAdapter.convert_input` writes the sample with
+`causaliq_core.r.write_r_datafile` and returns the matching
+`datafile_to_r_code` call, and `run` deletes the datafile once R has
+finished.
 
 Stable variants (`hc-stable`, `tabu-stable`) use the `score+` tie-breaking
 strategy in the CausalIQ native implementation to produce

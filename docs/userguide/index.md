@@ -84,14 +84,17 @@ identifies its type.
 - `provenance` — the provider and action that produced the entry,
   provider and workflow versions where available, action start and
   elapsed times where recorded, and runtime environment.
-- `parameters` — every supported action parameter, with implied
-  defaults made explicit and `null` where a parameter has no value.
-  The keys are `algorithm`, `variant`, `hyperparameters`,
-  `sample_size`, `input`, `output`, `trace`, `variable_types`,
-  `randomise`, `seed`, `reference` and `timeout`.  For a matrix run
-  the action-level `sample_size` is the requested value (an integer, a
-  list or `null`), while each `_meta.json` records the effective
-  per-run integer.
+- `parameters` — the effective parameters of the run: values supplied
+  plus the defaults that applied.  The keys are `algorithm`, `variant`,
+  `hyperparameters`, `sample_size`, `input`, `output`, `trace`,
+  `variable_types`, `randomise`, `seed`, `reference` and `timeout`,
+  except that parameters that do not apply are absent rather than
+  `null`.  Defaulted states are recorded with their explicit values:
+  `randomise: no-randomise`, `sample_size: all`,
+  `variable_types: impute` and `timeout: 60`.  For a matrix run the
+  action-level `sample_size` is the requested value (an integer, a list
+  or `all`), while each `_meta.json` records the effective per-run
+  integer.
 - `result` — the `learn_graph` outcome and run details: `graph_type`
   for successful runs (omitted when no graph was produced), `status`,
   optional `error`, `elapsed_algorithm` (seconds spent in the algorithm
@@ -247,12 +250,12 @@ populate the trace cache.
 
 ### `variable_types` parameter
 
-This optional parameter provides information about the variable types. It can be a string identifying a [CausalIQ Knowledge network context](https://causaliq.github.io/causaliq-knowledge/userguide/model_specification/) JSON file, or a `dict` in the Python `learn_graph` call. If a `dict` is used, the keys are variable names which must match the column headers in the `input` data file exactly. The supported variable types are defined in the `VariableTypes` `enum` defined in the [CausalIQ Core](https://causaliq.github.io/causaliq-core/) package, and are: `CONTINUOUS`, `DISCRETE`, `ORDINAL`, `BINARY` and `COUNT`. If this parameter is not specified, variable types would be imputed from their values in the `input` data file using standard Pandas rules.
+This optional parameter provides information about the variable types. It can be a string identifying a [CausalIQ Knowledge network context](https://causaliq.github.io/causaliq-knowledge/userguide/model_specification/) JSON file, or a `dict` in the Python `learn_graph` call. If a `dict` is used, the keys are variable names which must match the column headers in the `input` data file exactly. The supported variable types are defined in the `VariableTypes` `enum` defined in the [CausalIQ Core](https://causaliq.github.io/causaliq-core/) package, and are: `CONTINUOUS`, `DISCRETE`, `ORDINAL`, `BINARY` and `COUNT`. If this parameter is not specified, variable types would be imputed from their values in the `input` data file using standard Pandas rules; the explicit spelling of that default is `variable_types: impute`.
 
 
 ### `sample_size` parameter
 
-This optional parameter determines the number of rows in the input data file that the algorithm will use to learn from. This must be no more than the number of rows in the input data file. When the `row_sample` randomisation option is used, the data is read at ten times the requested sample size so the sample size must be no more than 10% of the rows that are read. The default is to use all rows in the input data file.
+This optional parameter determines the number of rows in the input data file that the algorithm will use to learn from. This must be no more than the number of rows in the input data file. When the `row_sample` randomisation option is used, the data is read at ten times the requested sample size so the sample size must be no more than 10% of the rows that are read. The default is to use all rows in the input data file, spelt explicitly as `sample_size: all`.
 
 
 ### `variant` parameter
@@ -282,11 +285,17 @@ Only one of `var_order`, `var_alpha`, `var_best` and `var_worst` may be specifie
 network. When `row_sample` is used, the data is read at ten times the maximum requested
 sample size so that row samples are genuinely random.
 
-The default is to use the row and variable order, and variable names present in the input data file, and to use the first `sample_size` rows in the data file. 
+The default is to use the row and variable order, and variable names present in the input data file, and to use the first `sample_size` rows in the data file. The default is spelt explicitly as `randomise: no-randomise`, so a workflow can pass the default as a value, for example from a matrix or to a called workflow.
+
+```yaml
+with:
+  action: "learn_graph"
+  randomise: "no-randomise"    # the default: no randomisation
+```
 
 ### `seed` parameter
 
-This parameter defines the randomisation seed when a randomising `randomise` option is specified (`var_order`, `var_names`, `row_order` or `row_sample`), and is an integer between 0 and 100. All randomisation in the CausalIQ ecosystem is deterministic - so that a specific `seed` value guarantees the same randomisation on every occasion and every platform so that specific experiments will always produce the same results. Default value is `None` which will trigger an error if a randomising option is specified.
+This parameter defines the randomisation seed when a randomising `randomise` option is specified (`var_order`, `var_names`, `row_order` or `row_sample`), and is an integer between 0 and 100. All randomisation in the CausalIQ ecosystem is deterministic - so that a specific `seed` value guarantees the same randomisation on every occasion and every platform so that specific experiments will always produce the same results. When a randomising option is specified, `seed` is required and must be provided; when no randomising option is specified, omit `seed` and it is recorded as not applicable rather than as `null`.
 
 ### `reference` parameter
 
