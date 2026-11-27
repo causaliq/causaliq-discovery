@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from time import asctime, localtime, monotonic
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Set
 
 from causaliq_analysis.graph import GraphAction, GraphActionDetail
 from causaliq_analysis.trace import Trace
@@ -42,14 +42,14 @@ class HCWorker:
     :ivar bool paused: whether learning has paused
     """
 
-    score_cache: Dict[Any, Any] = {}  # cache, shared across workers
+    score_cache: dict[Any, Any] = {}  # cache, shared across workers
 
     def __init__(
         self,
         data: Any,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         knowledge: Any,
-        context: Optional[Dict[str, Any]],
+        context: dict[str, Any] | None,
         init_cache: bool,
     ) -> None:
         """
@@ -72,7 +72,7 @@ class HCWorker:
 
         # Initialise parents to represent empty DAG and compute its score.
 
-        self.parents: Dict[str, Set[str]] = {
+        self.parents: dict[str, Set[str]] = {
             n: set() for n in self.data.get_order()
         }
         # print('\nStart scoring empty graph ...')
@@ -101,7 +101,7 @@ class HCWorker:
         # Capture the execution deadline so run() can enforce the
         # max_elapsed timeout requested by learn_graph.
 
-        self.max_elapsed: Optional[float] = params.get("max_elapsed")
+        self.max_elapsed: float | None = params.get("max_elapsed")
         self.start: float = monotonic()
 
         #   Order of edges in deltas defines processing order in algorithm and
@@ -139,8 +139,8 @@ class HCWorker:
         self.best_parents = deepcopy(self.parents)
         self.best_parents_score = self.score
         self.score2 = round(self.score, 10)
-        self.best: Optional[BestDAGChanges] = None
-        self.paused: Optional[bool] = None
+        self.best: BestDAGChanges | None = None
+        self.paused: bool | None = None
 
     def run(self) -> "HCWorker":
         """
@@ -281,7 +281,7 @@ class HCWorker:
     def clone(
         self,
         sequence: Any = None,
-        pause: Optional[bool] = None,
+        pause: bool | None = None,
     ) -> "HCWorker":
         """
         Makes a "clone" of an HCWorker object which references the *same*
@@ -353,7 +353,7 @@ class HCWorker:
         HCWorker.score_cache = {}
 
     def _check_possible_arc_changes_against_best(
-        self, arc: Tuple[str, str], delta: List[Any]
+        self, arc: tuple[str, str], delta: list[Any]
     ) -> None:
         """
         Identifies the best change for a particular arc and updates
@@ -387,7 +387,7 @@ class HCWorker:
 
             # check if delete is an improvement and is possible
 
-            delete: Optional[DAGChange] = DAGChange(
+            delete: DAGChange | None = DAGChange(
                 GraphAction.DEL, arc, delta[0][0], delta[0][1]
             )
             assert delete is not None
@@ -398,7 +398,7 @@ class HCWorker:
 
             # ... and check if reverse is an improvement and is possble
 
-            reverse: Optional[DAGChange] = DAGChange(
+            reverse: DAGChange | None = DAGChange(
                 GraphAction.REV, arc, delta[1][0], delta[1][1]
             )
             assert reverse is not None
@@ -459,7 +459,7 @@ class HCWorker:
 
         self.best = best
 
-    def _change_permitted(self, change: DAGChange) -> Optional[DAGChange]:
+    def _change_permitted(self, change: DAGChange) -> DAGChange | None:
         """
         Checks whether a change to an arc is allowed or not, applying the
         following checks in this order for maximum compatability with
@@ -516,7 +516,7 @@ class HCWorker:
     def _is_better(
         self,
         proposed: DAGChange,
-        current: Optional[DAGChange],
+        current: DAGChange | None,
         prefer: Any,
     ) -> bool:
         """
@@ -695,7 +695,7 @@ class HCWorker:
 
                 # print('     update {} delta to {}'.format(arc, deltas[arc]))
 
-    def _delta(self, arc: Tuple[str, str]) -> Tuple[float, Dict[str, Any]]:
+    def _delta(self, arc: tuple[str, str]) -> tuple[float, dict[str, Any]]:
         """
         Generate delta and counts info for the possible change to an
         individual arc. The possible type of change is determined according
@@ -734,7 +734,7 @@ class HCWorker:
 
     def _score(
         self, node: str, parents: Set[str]
-    ) -> Tuple[float, Dict[str, Any]]:
+    ) -> tuple[float, dict[str, Any]]:
         """
         Returns score, and counts on which that score is based, for a
         node with a specified set of parents. This method caches
@@ -777,8 +777,8 @@ class HCWorker:
         node: str,
         parents: Set[str],
         data: Any,
-        params: Dict[str, Any],
-    ) -> Tuple[float, Dict[str, Any]]:
+        params: dict[str, Any],
+    ) -> tuple[float, dict[str, Any]]:
         """
         Returns score, and counts on which that score is based, for a
         node with a specified set of parents. This method caches
@@ -817,7 +817,7 @@ class HCWorker:
 
         return HCWorker.score_cache[key]  # type: ignore[no-any-return]
 
-    def _init_trace(self, context: Optional[Dict[str, Any]]) -> None:
+    def _init_trace(self, context: dict[str, Any] | None) -> None:
         """
         Initialises the trace if context is provided.
 
@@ -845,9 +845,7 @@ class HCWorker:
                 )
             self.trace = Trace(context)
 
-            blocked: Optional[List[Any]] = (
-                None if self.tabulist is None else []
-            )
+            blocked: list[Any] | None = None if self.tabulist is None else []
             self.trace.add(
                 GraphAction.INIT,
                 {

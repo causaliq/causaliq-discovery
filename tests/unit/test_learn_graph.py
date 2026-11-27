@@ -1,7 +1,7 @@
 """Unit tests for learn_graph parameter validation."""
 
 import subprocess
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -616,7 +616,7 @@ def test_timeout_default_is_60(df, mocker):
 
 # learn_graph converts minutes to seconds and forwards timeout to run().
 def test_timeout_converted_to_seconds_and_passed_to_adapter(df, mocker):
-    captured: List[Dict[str, Any]] = []
+    captured: list[dict[str, Any]] = []
 
     class CaptureAdapter(CausalIQHCAdapter):
         def run(self, *args, **kwargs):

@@ -3,7 +3,7 @@
 import re
 import textwrap
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import click
 from jinja2 import Environment, FileSystemLoader
@@ -13,7 +13,7 @@ from causaliq_discovery.params import DEFAULT_TIMEOUT_MINUTES, RANDOMISE_OFF
 from causaliq_discovery.registry import AlgorithmRegistry, AlgorithmSpec
 
 
-def _randomise_from_cli(values: tuple) -> Optional[List[str]]:
+def _randomise_from_cli(values: tuple) -> list[str] | None:
     """Return the CLI randomise options, mapping the off token to none.
 
     ``--randomise`` is a repeatable option, so the explicit default token
@@ -37,8 +37,8 @@ def _randomise_from_cli(values: tuple) -> Optional[List[str]]:
 def _parse_hyperparameters(
     ctx: click.Context,
     param: click.Parameter,
-    value: Tuple[str, ...],
-) -> Optional[dict]:
+    value: tuple[str, ...],
+) -> dict | None:
     """Parse key=value hyperparameter strings into a dict.
 
     Args:
@@ -199,15 +199,15 @@ def learn_cmd(
     input_path: str,
     algorithm: str,
     output: str,
-    hyperparameters: Optional[dict],
+    hyperparameters: dict | None,
     trace: bool,
-    variable_types: Optional[str],
-    sample_size: Optional[int],
-    variant: Optional[str],
-    knowledge: Optional[str],
+    variable_types: str | None,
+    sample_size: int | None,
+    variant: str | None,
+    knowledge: str | None,
     randomise: tuple,
-    reference: Optional[str],
-    seed: Optional[int],
+    reference: str | None,
+    seed: int | None,
     timeout: float,
 ) -> None:
     """Learn a causal graph from data.
@@ -265,7 +265,7 @@ def _format_describe(spec: AlgorithmSpec) -> str:
     Returns:
         Formatted multi-line string for terminal output.
     """
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append(f"Algorithm:  {spec.algorithm}  \u2013  {spec.description}")
     lines.append(
         f"Class:      {spec.algorithm_class}  \u00b7  {spec.graph_type}"
@@ -334,7 +334,7 @@ def _format_describe(spec: AlgorithmSpec) -> str:
     metavar="NAME",
     help=("Variant to describe. Defaults to the first registered " "variant."),
 )
-def describe_cmd(algorithm: str, variant: Optional[str]) -> None:
+def describe_cmd(algorithm: str, variant: str | None) -> None:
     """Show description, hyperparameters, and reference for ALGORITHM."""
     try:
         spec = AlgorithmRegistry.get_spec(algorithm, variant)
@@ -358,7 +358,7 @@ def _algorithm_title(algorithm: str) -> str:
 def _build_template_context(
     spec: AlgorithmSpec,
     description_fragment: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build the Jinja2 template context for one algorithm page.
 
     Args:
@@ -424,7 +424,7 @@ def _build_template_context(
     }
 
 
-def _find_mkdocs(start: Path) -> Optional[Path]:
+def _find_mkdocs(start: Path) -> Path | None:
     """Walk up from start until mkdocs.yml is found.
 
     Args:
@@ -442,7 +442,7 @@ def _find_mkdocs(start: Path) -> Optional[Path]:
 
 def _update_mkdocs_nav(
     mkdocs_path: Path,
-    algorithms: List[str],
+    algorithms: list[str],
     out_path: Path,
 ) -> None:
     """Replace the Algorithms nav block in mkdocs.yml.
@@ -494,9 +494,7 @@ def _update_mkdocs_nav(
         "--output-dir when not supplied."
     ),
 )
-def generate_docs_cmd(
-    output_dir: Optional[str], mkdocs_file: Optional[str]
-) -> None:
+def generate_docs_cmd(output_dir: str | None, mkdocs_file: str | None) -> None:
     """Generate a user-guide markdown page for each registered algorithm."""
     cwd = Path.cwd()
     out_path = (

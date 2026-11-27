@@ -3,7 +3,7 @@
 import importlib.metadata
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -19,7 +19,7 @@ from causaliq_discovery.workflow_action import (
 )
 
 
-def _per_run_metadata() -> Dict[str, Any]:
+def _per_run_metadata() -> dict[str, Any]:
     """Return representative learn_graph action metadata."""
     return _build_action_metadata(
         algorithm="hc",
@@ -260,7 +260,7 @@ def test_environment_info_failure(
 ) -> None:
     """Test an environment collection error returns no environment."""
 
-    def failing_environment() -> Dict[str, Any]:
+    def failing_environment() -> dict[str, Any]:
         raise RuntimeError("environment unavailable")
 
     monkeypatch.setattr(

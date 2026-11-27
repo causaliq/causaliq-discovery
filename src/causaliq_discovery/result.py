@@ -3,7 +3,7 @@
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from causaliq_core.graph import SDG
 from causaliq_core.graph.io import graphml
@@ -33,8 +33,8 @@ class DiscoveryResult:
     """
 
     graph: SDG
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    trace: Optional[List[Dict[str, Any]]] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    trace: list[dict[str, Any]] | None = None
 
     def save(self, output_dir: str) -> None:
         """Write the result to a directory.

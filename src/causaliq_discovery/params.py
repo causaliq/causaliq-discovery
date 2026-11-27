@@ -1,7 +1,7 @@
 """Parameter validation for learn_graph."""
 
 import os
-from typing import Any, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -286,7 +286,7 @@ def validate_randomise(randomise: Any) -> None:
 
 def validate_seed(
     seed: Any,
-    randomise: Optional[List[str]],
+    randomise: list[str] | None,
 ) -> None:
     """Validate the seed parameter.
 
@@ -322,7 +322,7 @@ def validate_seed(
 
 def validate_reference(
     reference: Any,
-    randomise: Optional[List[str]],
+    randomise: list[str] | None,
 ) -> None:
     """Validate the reference parameter.
 

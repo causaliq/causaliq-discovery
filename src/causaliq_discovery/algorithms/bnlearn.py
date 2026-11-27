@@ -5,7 +5,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Union, cast
 
 import pandas as pd
 from causaliq_core.graph import DAG, PDAG, SDG
@@ -16,6 +16,7 @@ from causaliq_core.r import (
     write_r_datafile,
 )
 from causaliq_data import Data
+from causaliq_data.numpy import NumPy
 
 from causaliq_discovery.adapter import PackageAdapter
 from causaliq_discovery.errors import LearningError, LearningInputError
@@ -28,7 +29,7 @@ _DATA_VARNAME = "df"
 _ARCS_SENTINEL = "---ARCS---"
 
 # Maps common algorithm names to bnlearn R function names.
-_ALGO_R_NAME: Dict[str, str] = {
+_ALGO_R_NAME: dict[str, str] = {
     "hc": "hc",
     "tabu": "tabu",
     "pc-stable": "pc.stable",
@@ -51,12 +52,12 @@ _GAUSSIAN_SCORES = frozenset({"bic", "aic"})
 _GAUSSIAN_TESTS = frozenset({"mi", "mi-sh"})
 
 # Static mapping from common score value to bnlearn-specific value.
-_SCORE_VALUE_MAP: Dict[str, str] = {
+_SCORE_VALUE_MAP: dict[str, str] = {
     "bdeu": "bde",
 }
 
 # Map bnlearn action strings to common trace operation names.
-_OPERATIONS: Dict[str, str] = {
+_OPERATIONS: dict[str, str] = {
     "adding": "add",
     "removing": "delete",
     "reversing": "reverse",
@@ -69,7 +70,7 @@ _MAXIMIZE_PARAMS = frozenset({"score", "k", "iss", "max.iter"})
 _RESTRICT_PARAMS = frozenset({"alpha", "test"})
 
 # Maps VariableType to the type string used by data_to_r_dataframe.
-_VT_TO_R_TYPE: Dict[VariableType, str] = {
+_VT_TO_R_TYPE: dict[VariableType, str] = {
     VariableType.CONTINUOUS: "CONTINUOUS",
     VariableType.DISCRETE: "DISCRETE",
     VariableType.BINARY: "DISCRETE",
@@ -97,11 +98,11 @@ class BnlearnAdapter(PackageAdapter):
     def convert_input(
         self,
         data: Union[pd.DataFrame, Data],
-        variable_types: Optional[Dict[str, VariableType]],
-        sample_size: Optional[int],
-        randomise: Optional[list],
-        seed: Optional[int],
-    ) -> Dict[str, Any]:
+        variable_types: dict[str, VariableType] | None,
+        sample_size: int | None,
+        randomise: list | None,
+        seed: int | None,
+    ) -> dict[str, Any]:
         """Write the sample to a temporary CSV and build reading R code.
 
         The sample is written to a uniquely named CSV datafile and the
@@ -135,10 +136,11 @@ class BnlearnAdapter(PackageAdapter):
             ``nodes``: Ordered list of node names.
             ``n_rows``: Number of rows in the dataset.
         """
-        vt: Dict[str, VariableType] = variable_types or {}
+        data = cast(NumPy, data)
+        vt: dict[str, VariableType] = variable_types or {}
         columns = list(data.get_order())
         ordered_sample = data.sample[:, list(data.order)]
-        node_types: Dict[str, str] = {
+        node_types: dict[str, str] = {
             col: _VT_TO_R_TYPE.get(
                 vt.get(data.ext_to_orig[col], VariableType.CONTINUOUS),
                 "CONTINUOUS",
@@ -159,12 +161,12 @@ class BnlearnAdapter(PackageAdapter):
 
     def run(
         self,
-        converted_data: Dict[str, Any],
+        converted_data: dict[str, Any],
         algorithm: str,
-        mapped_hyperparameters: Dict[str, Any],
+        mapped_hyperparameters: dict[str, Any],
         trace: bool = False,
-        timeout: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
         """Build and execute the bnlearn R script.
 
         Adjusts score and CI-test names for Gaussian continuous data,
@@ -208,7 +210,7 @@ class BnlearnAdapter(PackageAdapter):
         n_rows = converted_data["n_rows"]
         r_data_code = converted_data["r_data_code"]
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             k: v
             for k, v in mapped_hyperparameters.items()
             if not (k == "max.tabu" and v == 0)
@@ -239,7 +241,7 @@ class BnlearnAdapter(PackageAdapter):
             params=params,
             debug=trace,
         )
-        data_file: Optional[str] = converted_data.get("data_file")
+        data_file: str | None = converted_data.get("data_file")
         try:
             stdout = run_r_script(script, timeout=timeout or 60)
         finally:
@@ -250,7 +252,7 @@ class BnlearnAdapter(PackageAdapter):
             "nodes": nodes,
         }
 
-    def convert_output(self, raw_output: Dict[str, Any]) -> SDG:
+    def convert_output(self, raw_output: dict[str, Any]) -> SDG:
         """Parse arcs from R stdout and return an SDG.
 
         Splits stdout on the arcs sentinel to isolate the arc table,
@@ -268,12 +270,12 @@ class BnlearnAdapter(PackageAdapter):
         """
         stdout: str = raw_output["stdout"]
         algorithm: str = raw_output["algorithm"]
-        nodes: List[str] = raw_output["nodes"]
+        nodes: list[str] = raw_output["nodes"]
 
         parts = stdout.split(_ARCS_SENTINEL + "\n", 1)
         arcs_text = parts[1] if len(parts) > 1 else ""
 
-        arc_pairs: List[Tuple[str, str]] = []
+        arc_pairs: list[tuple[str, str]] = []
         for line in arcs_text.splitlines():
             line = line.strip()
             if "\t" in line:
@@ -287,8 +289,8 @@ class BnlearnAdapter(PackageAdapter):
         return PDAG(nodes, edges)
 
     def build_trace(
-        self, raw_output: Dict[str, Any]
-    ) -> Optional[List[Dict[str, Any]]]:
+        self, raw_output: dict[str, Any]
+    ) -> list[dict[str, Any]] | None:
         """Parse bnlearn debug output into score_steps format.
 
         Extracts arc changes and score deltas from the verbose
@@ -341,7 +343,7 @@ class BnlearnAdapter(PackageAdapter):
 # ---------------------------------------------------------------------------
 
 
-def _write_temp_datafile(sample: Any, columns: List[str]) -> str:
+def _write_temp_datafile(sample: Any, columns: list[str]) -> str:
     """Write the sample to a uniquely named temporary CSV datafile.
 
     Args:
@@ -365,7 +367,7 @@ def _write_temp_datafile(sample: Any, columns: List[str]) -> str:
     return path
 
 
-def _remove_datafile(path: Optional[str]) -> None:
+def _remove_datafile(path: str | None) -> None:
     """Delete a temporary datafile, ignoring a missing file.
 
     Args:
@@ -401,7 +403,7 @@ def _r_literal(value: Any) -> str:
 
 def _build_simple_call(
     r_func: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     debug: bool,
 ) -> str:
     """Build a simple bnlearn algorithm call as an R statement.
@@ -424,7 +426,7 @@ def _build_simple_call(
 
 def _build_hybrid_call(
     r_func: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     debug: bool,
 ) -> str:
     """Build an h2pc/mmhc call splitting params into sub-arg lists.
@@ -463,7 +465,7 @@ def _build_hybrid_call(
 def _build_r_script(
     r_data_code: str,
     algorithm: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     debug: bool,
 ) -> str:
     """Assemble a complete bnlearn R script.
@@ -508,7 +510,7 @@ def _build_r_script(
     return "\n".join(lines) + "\n"
 
 
-def _parse_hc_trace(debug_text: str) -> List[Dict[str, Any]]:
+def _parse_hc_trace(debug_text: str) -> list[dict[str, Any]]:
     """Parse bnlearn HC debug output into a score_steps list.
 
     Extracts arc changes and their score deltas from the verbose
@@ -541,10 +543,10 @@ def _parse_hc_trace(debug_text: str) -> List[Dict[str, Any]]:
         r"^\s+@ (adding|removing|reversing) (\S+) -> (\S+)\s*\.$"
     )
 
-    steps: List[Dict[str, Any]] = []
-    deltas: Dict[Tuple[str, str, str], float] = {}
-    last_delta: Optional[Tuple[str, str, float]] = None
-    current_scores: List[float] = []
+    steps: list[dict[str, Any]] = []
+    deltas: dict[tuple[str, str, str], float] = {}
+    last_delta: tuple[str, str, float] | None = None
+    current_scores: list[float] = []
 
     for line in debug_text.splitlines():
         current_m = current_pat.match(line)

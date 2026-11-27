@@ -1,7 +1,7 @@
 # Implement a Tabu list which can be used by HC algorithm
 
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from causaliq_analysis.graph import GraphAction
 
@@ -26,11 +26,11 @@ class TabuList:
         if tabu_len < 1 or tabu_len > 100:
             raise ValueError("TabuList bad arg value")
 
-        self.tabu: List[Any] = [None] * tabu_len
+        self.tabu: list[Any] = [None] * tabu_len
         self.ptr = 0
-        self._blocked: List[Any] = []
+        self._blocked: list[Any] = []
 
-    def add(self, parents: Dict[str, Any]) -> None:
+    def add(self, parents: dict[str, Any]) -> None:
         """
         Adds a new DAG to list at current pointer position.
 
@@ -50,10 +50,10 @@ class TabuList:
 
     def hit(
         self,
-        parents: Dict[str, Any],
+        parents: dict[str, Any],
         proposed: DAGChange,
         trace: bool = True,
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Checks whether DAG with proposed change is present in the Tabu list
 
@@ -111,7 +111,7 @@ class TabuList:
 
         return hit
 
-    def blocked(self) -> List[Any]:
+    def blocked(self) -> list[Any]:
         """
         Returns latest list of changes that have been blocked by Tabu list.
 

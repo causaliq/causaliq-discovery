@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 from causaliq_core import ActionValidationError
@@ -23,8 +23,8 @@ class _DummyContext:
 
     def __init__(
         self,
-        matrix: Dict[str, List[Any]],
-        matrix_values: Dict[str, Any],
+        matrix: dict[str, list[Any]],
+        matrix_values: dict[str, Any],
     ) -> None:
         self.matrix = matrix
         self.matrix_values = matrix_values
@@ -1282,7 +1282,7 @@ def test_run_forwards_timeout_to_learn_graph(
     import causaliq_discovery
 
     real_learn_graph = causaliq_discovery.learn_graph
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     def capturing_learn_graph(**kwargs: object) -> object:
         captured.update(kwargs)

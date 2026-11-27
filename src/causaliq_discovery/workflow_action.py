@@ -12,15 +12,7 @@ import os
 from dataclasses import dataclass
 from io import StringIO
 from time import perf_counter
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Union
 
 # Check if workflow is available at runtime
 WORKFLOW_AVAILABLE = False
@@ -113,8 +105,8 @@ from causaliq_discovery.params import (  # noqa: E402
 def _build_output_dir(
     base: str,
     algorithm: str,
-    variant: Optional[str],
-    sample_size: Optional[int],
+    variant: str | None,
+    sample_size: int | None,
 ) -> str:
     """Build the output directory path for a single learn_graph run.
 
@@ -137,7 +129,7 @@ def _build_output_dir(
         >>> _build_output_dir("/out", "hc", None, None)
         '/out/hc'
     """
-    parts: List[str] = [base, algorithm]
+    parts: list[str] = [base, algorithm]
     if variant:
         parts.append(variant)
     if sample_size is not None:
@@ -147,7 +139,7 @@ def _build_output_dir(
 
 def _parse_sample_sizes(
     sample_size: Any,
-) -> Optional[List[int]]:
+) -> list[int] | None:
     """Parse the sample_size parameter to a list of positive ints.
 
     Accepts a single positive integer, a list of positive integers,
@@ -196,7 +188,7 @@ def _parse_sample_sizes(
             f"got {type(sample_size).__name__}."
         )
     if isinstance(sample_size, int):
-        items: List[Any] = [sample_size]
+        items: list[Any] = [sample_size]
     elif isinstance(sample_size, (list, tuple)):
         items = list(sample_size)
     else:
@@ -204,7 +196,7 @@ def _parse_sample_sizes(
             f"'sample_size' must be an int or list of ints; "
             f"got {type(sample_size).__name__}."
         )
-    sizes: List[int] = []
+    sizes: list[int] = []
     for s in items:
         if isinstance(s, bool) or not isinstance(s, int) or s <= 0:
             raise ActionValidationError(
@@ -220,7 +212,7 @@ def _is_workflow_cache_path(output_path: str) -> bool:
     return output_path.lower().endswith(".db")
 
 
-def _trace_cache_path(value: Any) -> Optional[str]:
+def _trace_cache_path(value: Any) -> str | None:
     """Resolve the ``trace`` parameter to a workflow cache path.
 
     The trace is written to its own typed workflow cache. When ``trace``
@@ -255,7 +247,7 @@ def _trace_cache_path(value: Any) -> Optional[str]:
 
 def _write_trace_cache(
     trace_path: str,
-    context: Optional[WorkflowContext],
+    context: WorkflowContext | None,
     trace: Any,
 ) -> None:
     """Write the execution trace to its own typed workflow cache.
@@ -285,9 +277,9 @@ def _write_trace_cache(
 
 def _resolve_run_parameters(
     algorithm: str,
-    variant: Optional[str],
-    hyperparameters: Optional[Dict[str, Any]],
-) -> Tuple[Optional[str], Dict[str, Any]]:
+    variant: str | None,
+    hyperparameters: dict[str, Any] | None,
+) -> tuple[str | None, dict[str, Any]]:
     """Resolve effective variant and hyperparameters for metadata.
 
     Uses the registered ``AlgorithmSpec`` when available so that
@@ -316,7 +308,7 @@ def _resolve_run_parameters(
 
 def _serialise_variable_types(
     variable_types: Any,
-) -> Optional[Union[Dict[str, str], str]]:
+) -> Union[dict[str, str], str] | None:
     """Return variable types in a JSON-serialisable form.
 
     Args:
@@ -349,9 +341,9 @@ def _resolve_variable_types(variable_types: Any) -> Any:
 
 
 def _resolve_output_parameter(
-    parameters: Dict[str, Any],
-    context: Optional[WorkflowContext],
-) -> Optional[str]:
+    parameters: dict[str, Any],
+    context: WorkflowContext | None,
+) -> str | None:
     """Return the effective output parameter for action metadata.
 
     Workflow caches receive the output destination through the open
@@ -374,10 +366,10 @@ def _resolve_output_parameter(
 
 
 def _build_shared_parameters(
-    parameters: Dict[str, Any],
-    trace_path: Optional[str],
-    output_path: Optional[str],
-) -> Dict[str, Any]:
+    parameters: dict[str, Any],
+    trace_path: str | None,
+    output_path: str | None,
+) -> dict[str, Any]:
     """Return effective parameters shared by every matrix run.
 
     Parameters that do not apply to this run are omitted rather than
@@ -392,7 +384,7 @@ def _build_shared_parameters(
     Returns:
         Parameters shared by every run, with defaults made explicit.
     """
-    shared: Dict[str, Any] = {
+    shared: dict[str, Any] = {
         "input": parameters["input"],
         "variable_types": _record_variable_types(
             parameters.get("variable_types")
@@ -452,10 +444,10 @@ def _record_sample_size(sample_size: Any) -> Any:
 
 def _resolve_effective_run(
     algorithm: str,
-    variant: Optional[str],
-    user_hyperparameters: Optional[Dict[str, Any]],
-    result_metadata: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    variant: str | None,
+    user_hyperparameters: dict[str, Any] | None,
+    result_metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Resolve the effective variant, hyperparameters and variable order.
 
     Args:
@@ -489,15 +481,15 @@ def _build_action_metadata(
     *,
     algorithm: str,
     sample_size: Any,
-    shared: Dict[str, Any],
-    result_metadata: Optional[Dict[str, Any]],
-    user_hyperparameters: Optional[Dict[str, Any]],
-    variant: Optional[str],
+    shared: dict[str, Any],
+    result_metadata: dict[str, Any] | None,
+    user_hyperparameters: dict[str, Any] | None,
+    variant: str | None,
     elapsed_algorithm: float,
     status: str,
-    error: Optional[str] = None,
-    graph_type: Optional[str] = None,
-) -> Dict[str, Any]:
+    error: str | None = None,
+    graph_type: str | None = None,
+) -> dict[str, Any]:
     """Build the parameters and result blocks for a learn_graph run.
 
     For successful runs the resolved variant and effective
@@ -548,9 +540,9 @@ def _build_parameter_block(
     *,
     algorithm: str,
     sample_size: Any,
-    shared: Dict[str, Any],
-    effective: Dict[str, Any],
-) -> Dict[str, Any]:
+    shared: dict[str, Any],
+    effective: dict[str, Any],
+) -> dict[str, Any]:
     """Build the effective parameters block for a learn_graph run.
 
     Args:
@@ -575,10 +567,10 @@ def _build_result_block(
     *,
     status: str,
     elapsed_algorithm: float,
-    graph_type: Optional[str],
-    variable_order: Optional[List[str]],
-    error: Optional[str],
-) -> Dict[str, Any]:
+    graph_type: str | None,
+    variable_order: list[str] | None,
+    error: str | None,
+) -> dict[str, Any]:
     """Build the result block for a learn_graph run.
 
     Args:
@@ -593,7 +585,7 @@ def _build_result_block(
     Returns:
         Result block for the run.
     """
-    meta: Dict[str, Any] = {
+    meta: dict[str, Any] = {
         "status": status,
         "elapsed_algorithm": elapsed_algorithm,
     }
@@ -607,8 +599,8 @@ def _build_result_block(
 
 
 def _merge_action_metadata(
-    target: Dict[str, Any],
-    source: Dict[str, Any],
+    target: dict[str, Any],
+    source: dict[str, Any],
 ) -> None:
     """Merge the blocks of one action metadata mapping into another.
 
@@ -621,9 +613,9 @@ def _merge_action_metadata(
 
 
 def _resolve_run_sizes(
-    sizes: Optional[List[int]],
+    sizes: list[int] | None,
     use_cache_output: bool,
-) -> List[Optional[int]]:
+) -> list[int | None]:
     """Return the sample size for each run.
 
     Args:
@@ -644,9 +636,9 @@ def _write_meta_json(
     output_dir: str,
     *,
     algorithm: str,
-    variant: Optional[str],
-    sample_size: Optional[int],
-    metadata: Dict[str, Any],
+    variant: str | None,
+    sample_size: int | None,
+    metadata: dict[str, Any],
     include_trace: bool,
     has_graph: bool = True,
 ) -> None:
@@ -681,7 +673,7 @@ def _write_meta_json(
         json.dump(meta, f, indent=2)
 
 
-def _metadata_envelope(metadata: Dict[str, Any]) -> Dict[str, Any]:
+def _metadata_envelope(metadata: dict[str, Any]) -> dict[str, Any]:
     """Build the version 2 metadata envelope for a directory output.
 
     Args:
@@ -701,7 +693,7 @@ def _metadata_envelope(metadata: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-def _provider_version() -> Optional[str]:
+def _provider_version() -> str | None:
     """Return the installed causaliq-discovery version, if available."""
     try:
         return importlib.metadata.version("causaliq-discovery")
@@ -709,7 +701,7 @@ def _provider_version() -> Optional[str]:
         return None
 
 
-def _environment_info() -> Optional[Dict[str, Any]]:
+def _environment_info() -> dict[str, Any] | None:
     """Return runtime environment information, or None."""
     try:
         env = environment_info()
@@ -721,13 +713,13 @@ def _environment_info() -> Optional[Dict[str, Any]]:
 def _build_action_summary_metadata(
     *,
     algorithm: str,
-    variant: Optional[str],
+    variant: str | None,
     sample_size: Any,
-    shared: Dict[str, Any],
-    user_hyperparameters: Optional[Dict[str, Any]],
+    shared: dict[str, Any],
+    user_hyperparameters: dict[str, Any] | None,
     status: str,
     data_load_seconds: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build the action-level metadata returned to the workflow.
 
     Args:
@@ -926,7 +918,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     }
 
     def validate_parameters(
-        self, action: str, parameters: Dict[str, Any]
+        self, action: str, parameters: dict[str, Any]
     ) -> None:
         """Validate action and parameters before execution.
 
@@ -972,7 +964,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     def _dry_run_result(
         self,
         action: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
     ) -> "ActionResult":
         """Return informative dry-run result without executing.
 
@@ -987,7 +979,7 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             Tuple of ('dry-run', metadata, []).
         """
         algorithm: str = parameters.get("algorithm", "")
-        variant: Optional[str] = parameters.get("variant")
+        variant: str | None = parameters.get("variant")
         output_base: str = parameters.get("output", "")
         sizes = _parse_sample_sizes(parameters.get("sample_size"))
         run_sizes = _resolve_run_sizes(sizes, use_cache_output=False)
@@ -1016,10 +1008,10 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     def _execute(
         self,
         action: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
         mode: str,
-        context: Optional[WorkflowContext],
-        logger: Optional[WorkflowLogger],
+        context: WorkflowContext | None,
+        logger: WorkflowLogger | None,
     ) -> "ActionResult":
         """Execute the learn_graph action.
 
@@ -1051,10 +1043,10 @@ class DiscoveryActionProvider(CausalIQActionProvider):
 
     def _run_learn_graph(
         self,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
         mode: str,
-        context: Optional[WorkflowContext],
-        logger: Optional[WorkflowLogger],
+        context: WorkflowContext | None,
+        logger: WorkflowLogger | None,
     ) -> "ActionResult":
         """Run learn_graph for all sample_size matrix values.
 
@@ -1082,16 +1074,16 @@ class DiscoveryActionProvider(CausalIQActionProvider):
         # Import learn_graph lazily to avoid circular imports since
         # learn_graph is defined in causaliq_discovery.__init__.
         from causaliq_discovery import learn_graph  # noqa: PLC0415
-        from causaliq_discovery.errors import (  # noqa: PLC0415
-            STATUS_OK,
+        from causaliq_discovery.errors import STATUS_OK  # noqa: PLC0415
+        from causaliq_discovery.errors import (
             classify_error,
         )
 
         input_path: str = parameters["input"]
         algorithm: str = parameters["algorithm"]
         output_base = str(parameters.get("output", ""))
-        variant: Optional[str] = parameters.get("variant")
-        hyperparameters: Optional[Dict[str, Any]] = parameters.get(
+        variant: str | None = parameters.get("variant")
+        hyperparameters: dict[str, Any] | None = parameters.get(
             "hyperparameters"
         )
         trace_path = _trace_cache_path(parameters.get("trace"))
@@ -1141,11 +1133,11 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             )
         data_load_seconds = perf_counter() - data_load_start
 
-        output_dirs: List[str] = []
-        all_objects: List[Dict[str, Any]] = []
-        cache_metadata: Dict[str, Any] = {}
+        output_dirs: list[str] = []
+        all_objects: list[dict[str, Any]] = []
+        cache_metadata: dict[str, Any] = {}
         num_succeeded = 0
-        first_failure_status: Optional[str] = None
+        first_failure_status: str | None = None
         run_sizes = _resolve_run_sizes(sizes, use_cache_output)
 
         for n in run_sizes:
@@ -1271,10 +1263,10 @@ class DiscoveryActionProvider(CausalIQActionProvider):
     def _all_runs_failed(
         self,
         *,
-        parameters: Dict[str, Any],
-        trace_path: Optional[str],
-        output_path: Optional[str],
-        sizes: Optional[List[int]],
+        parameters: dict[str, Any],
+        trace_path: str | None,
+        output_path: str | None,
+        sizes: list[int] | None,
         use_cache_output: bool,
         failure: LearningError,
         data_load_start: float,
@@ -1299,16 +1291,16 @@ class DiscoveryActionProvider(CausalIQActionProvider):
             Tuple of ("error", metadata, []).
         """
         algorithm: str = parameters["algorithm"]
-        variant: Optional[str] = parameters.get("variant")
-        hyperparameters: Optional[Dict[str, Any]] = parameters.get(
+        variant: str | None = parameters.get("variant")
+        hyperparameters: dict[str, Any] | None = parameters.get(
             "hyperparameters"
         )
         output_base = str(parameters.get("output", ""))
         shared = _build_shared_parameters(parameters, trace_path, output_path)
         run_sizes = _resolve_run_sizes(sizes, use_cache_output)
 
-        output_dirs: List[str] = []
-        cache_metadata: Dict[str, Any] = {}
+        output_dirs: list[str] = []
+        cache_metadata: dict[str, Any] = {}
         for n in run_sizes:
             if use_cache_output:
                 out_dir = ""

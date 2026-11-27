@@ -1,7 +1,7 @@
 """Algorithm specifications and registry for causal discovery."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Set, Type
 
 from causaliq_discovery.adapter import PackageAdapter
 
@@ -28,8 +28,8 @@ class HyperparameterSpec:
     category: str
     type: str
     description: str
-    valid_values: Optional[List[str]] = None
-    default_display: Optional[str] = None
+    valid_values: list[str] | None = None
+    default_display: str | None = None
 
 
 @dataclass
@@ -68,9 +68,9 @@ class AlgorithmSpec:
     description: str
     graph_type: str
     supported_hyperparameters: Set[str] = field(default_factory=set)
-    hyperparameter_defaults: Dict[str, Any] = field(default_factory=dict)
-    hyperparameter_name_map: Dict[str, str] = field(default_factory=dict)
-    hyperparameter_value_map: Dict[str, Dict[Any, Any]] = field(
+    hyperparameter_defaults: dict[str, Any] = field(default_factory=dict)
+    hyperparameter_name_map: dict[str, str] = field(default_factory=dict)
+    hyperparameter_value_map: dict[str, dict[Any, Any]] = field(
         default_factory=dict
     )
     paper_ref: str = ""
@@ -88,8 +88,8 @@ class AlgorithmRegistry:
     any adapter is available.
     """
 
-    _specs: Dict[Tuple[str, str], AlgorithmSpec] = {}
-    _adapters: Dict[Tuple[str, str], Type[PackageAdapter]] = {}
+    _specs: dict[tuple[str, str], AlgorithmSpec] = {}
+    _adapters: dict[tuple[str, str], Type[PackageAdapter]] = {}
 
     @classmethod
     def register_spec(cls, spec: AlgorithmSpec) -> None:
@@ -126,7 +126,7 @@ class AlgorithmRegistry:
         cls._adapters[(algorithm, variant)] = adapter_class
 
     @classmethod
-    def get_spec(cls, algorithm: str, variant: Optional[str]) -> AlgorithmSpec:
+    def get_spec(cls, algorithm: str, variant: str | None) -> AlgorithmSpec:
         """Return the AlgorithmSpec for the given algorithm/variant.
 
         If variant is None the default variant (first registered) is
@@ -147,7 +147,7 @@ class AlgorithmRegistry:
 
     @classmethod
     def get_adapter(
-        cls, algorithm: str, variant: Optional[str]
+        cls, algorithm: str, variant: str | None
     ) -> Type[PackageAdapter]:
         """Return the adapter class for the given algorithm/variant.
 
@@ -173,7 +173,7 @@ class AlgorithmRegistry:
         return cls._adapters[key]
 
     @classmethod
-    def algorithms(cls) -> List[str]:
+    def algorithms(cls) -> list[str]:
         """Return sorted list of all registered algorithm names.
 
         Returns:
@@ -182,7 +182,7 @@ class AlgorithmRegistry:
         return sorted({alg for alg, _ in cls._specs})
 
     @classmethod
-    def variants(cls, algorithm: str) -> List[str]:
+    def variants(cls, algorithm: str) -> list[str]:
         """Return sorted list of variant names for an algorithm.
 
         Args:
@@ -220,8 +220,8 @@ class AlgorithmRegistry:
 
     @classmethod
     def _resolve_key(
-        cls, algorithm: str, variant: Optional[str]
-    ) -> Tuple[str, str]:
+        cls, algorithm: str, variant: str | None
+    ) -> tuple[str, str]:
         """Resolve (algorithm, variant) to a registry key.
 
         Args:
@@ -256,7 +256,7 @@ class AlgorithmRegistry:
 # Global hyperparameter documentation registry.
 # ---------------------------------------------------------------------------
 
-HYPERPARAMETER_SPECS: Dict[str, HyperparameterSpec] = {
+HYPERPARAMETER_SPECS: dict[str, HyperparameterSpec] = {
     "alpha": HyperparameterSpec(
         name="alpha",
         category="constraint",
@@ -339,7 +339,7 @@ _SCORE_HYPERPARAMETERS: Set[str] = {
     "max_iterations",
     "penalty_weight",
 }
-_SCORE_DEFAULTS: Dict[str, Any] = {
+_SCORE_DEFAULTS: dict[str, Any] = {
     "score": "bic",
     "iss": 1.0,
     "penalty_weight": 1.0,
@@ -348,7 +348,7 @@ _TABU_HYPERPARAMETERS: Set[str] = _SCORE_HYPERPARAMETERS | {
     "tabulist_len",
     "no_increase",
 }
-_TABU_DEFAULTS: Dict[str, Any] = {
+_TABU_DEFAULTS: dict[str, Any] = {
     **_SCORE_DEFAULTS,
     "tabulist_len": 10,
     "no_increase": 10,
@@ -357,7 +357,7 @@ _CONSTRAINT_HYPERPARAMETERS: Set[str] = {
     "alpha",
     "ci_test",
 }
-_CONSTRAINT_DEFAULTS: Dict[str, Any] = {
+_CONSTRAINT_DEFAULTS: dict[str, Any] = {
     "alpha": 0.05,
     "ci_test": "mi",
 }
@@ -366,9 +366,7 @@ _CONSTRAINT_DEFAULTS: Dict[str, Any] = {
 from causaliq_discovery.algorithms.causaliq_hc import (  # noqa: E402
     CausalIQHCAdapter,
 )
-from causaliq_discovery.algorithms.tetrad import (  # noqa: E402
-    TetradAdapter,
-)
+from causaliq_discovery.algorithms.tetrad import TetradAdapter  # noqa: E402
 
 for _spec in [
     AlgorithmSpec(
@@ -648,9 +646,7 @@ AlgorithmRegistry.register_adapter("hc", "causaliq", CausalIQHCAdapter)
 AlgorithmRegistry.register_adapter("tabu", "causaliq", CausalIQHCAdapter)
 AlgorithmRegistry.register_adapter("fges", "tetrad", TetradAdapter)
 
-from causaliq_discovery.algorithms.bnlearn import (  # noqa: E402
-    BnlearnAdapter,
-)
+from causaliq_discovery.algorithms.bnlearn import BnlearnAdapter  # noqa: E402
 
 AlgorithmRegistry.register_adapter("hc", "bnlearn", BnlearnAdapter)
 AlgorithmRegistry.register_adapter("tabu", "bnlearn", BnlearnAdapter)

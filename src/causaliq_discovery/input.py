@@ -1,6 +1,6 @@
 """Data input normalisation for learn_graph."""
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Union
 
 import pandas as pd
 from causaliq_data.data import Data, DatasetType
@@ -14,9 +14,9 @@ _SNIFF_ROWS = 100
 
 def read_data(
     data: str,
-    variable_types: Optional[Dict[str, VariableType]],
-    max_rows: Optional[int] = None,
-) -> Tuple[NumPy, Dict[str, VariableType]]:
+    variable_types: dict[str, VariableType] | None,
+    max_rows: int | None = None,
+) -> tuple[NumPy, dict[str, VariableType]]:
     """Read a CSV file into a NumPy object, capping rows read from disk.
 
     Uses the ``N`` argument of :meth:`NumPy.read` so at most ``max_rows``
@@ -68,8 +68,8 @@ def read_data(
 
 def normalise_data(
     data: Union[str, pd.DataFrame, Data],
-    variable_types: Optional[Union[str, Dict[str, VariableType]]],
-) -> Tuple[NumPy, Dict[str, VariableType]]:
+    variable_types: Union[str, dict[str, VariableType]] | None,
+) -> tuple[NumPy, dict[str, VariableType]]:
     """Normalise data input to a NumPy object with resolved types.
 
     Accepts a CSV file path, a pandas DataFrame, or an existing
@@ -124,7 +124,7 @@ def normalise_data(
 
 def _df_to_numpy(
     df: pd.DataFrame,
-    variable_types: Optional[Dict[str, VariableType]],
+    variable_types: dict[str, VariableType] | None,
 ) -> NumPy:
     """Convert a DataFrame to a NumPy data object.
 
@@ -201,7 +201,7 @@ def _dstype_from_path(path: str) -> DatasetType:
 
 
 def _dstype_from_variable_types(
-    variable_types: Dict[str, VariableType],
+    variable_types: dict[str, VariableType],
 ) -> DatasetType:
     """Determine DatasetType from a variable types mapping.
 
@@ -266,7 +266,7 @@ def _coerce_df(
 
 def _impute_variable_types(
     data: NumPy,
-) -> Dict[str, VariableType]:
+) -> dict[str, VariableType]:
     """Impute variable types from a NumPy object's node types.
 
     Args:
@@ -279,7 +279,7 @@ def _impute_variable_types(
         ValueError: If any node type cannot be mapped to a
             supported VariableType.
     """
-    result: Dict[str, VariableType] = {}
+    result: dict[str, VariableType] = {}
     for node, dtype in data.node_types.items():
         if dtype in ("float32", "float64"):
             result[node] = VariableType.CONTINUOUS
@@ -295,8 +295,8 @@ def _impute_variable_types(
 
 def _resolve_variable_types(
     data: NumPy,
-    variable_types: Optional[Dict[str, VariableType]],
-) -> Dict[str, VariableType]:
+    variable_types: dict[str, VariableType] | None,
+) -> dict[str, VariableType]:
     """Resolve and validate variable types against data nodes.
 
     Args:
@@ -343,10 +343,10 @@ def _resolve_variable_types(
 
 def apply_sampling(
     data: NumPy,
-    sample_size: Optional[int],
-    randomise: Optional[List[str]],
-    seed: Optional[int],
-    topo_order: Optional[Tuple[str, ...]] = None,
+    sample_size: int | None,
+    randomise: list[str] | None,
+    seed: int | None,
+    topo_order: tuple[str, ...] | None = None,
 ) -> None:
     """Apply sampling and randomisation to a NumPy data object.
 

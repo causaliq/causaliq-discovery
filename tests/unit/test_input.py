@@ -1,7 +1,6 @@
 """Unit tests for data input normalisation."""
 
 import warnings
-from typing import List, Optional
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -426,11 +425,11 @@ def test_apply_sampling_var_best_with_var_names_maps_names(
 
 # Names are randomised before variable order, matching legacy order.
 def test_apply_sampling_names_before_order(cont_numpy: NumPy) -> None:
-    calls: List[str] = []
+    calls: list[str] = []
     orig_names = cont_numpy.randomise_names
     orig_order = cont_numpy.randomise_order
 
-    def spy_names(seed: Optional[int]) -> None:
+    def spy_names(seed: int | None) -> None:
         calls.append("names")
         orig_names(seed)
 

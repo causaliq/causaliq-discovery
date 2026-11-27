@@ -17,7 +17,7 @@ workflow run.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from causaliq_core.bn import BN
 from causaliq_core.bn.io import read_bn
@@ -29,10 +29,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from causaliq_workflow.registry import WorkflowContext
 
 # Input path (+ variable type overrides) -> loaded NumPy data object.
-_DATA_CACHE: Dict[str, NumPy] = {}
+_DATA_CACHE: dict[str, NumPy] = {}
 
 # Reference network path -> parsed BN object.
-_REFERENCE_CACHE: Dict[str, BN] = {}
+_REFERENCE_CACHE: dict[str, BN] = {}
 
 # Numeric suffix multipliers used when parsing matrix sample sizes such
 # as "1K" or "10M" (decimal, matching the dataset sizes in the repo).
@@ -73,7 +73,7 @@ def load_cached_reference(path: str) -> BN:
 
 def _cache_key(
     input_path: str,
-    variable_types: Optional[Dict[str, Any]],
+    variable_types: dict[str, Any] | None,
 ) -> str:
     """Build a cache key from an input path and variable type overrides.
 
@@ -91,7 +91,7 @@ def _cache_key(
     return f"{input_path}|{types_key}"
 
 
-def _parse_sample_size_value(value: Any) -> Optional[int]:
+def _parse_sample_size_value(value: Any) -> int | None:
     """Parse a single sample-size value, including suffix strings.
 
     Accepts positive ints and strings such as ``"100"``, ``"1K"`` or
@@ -124,9 +124,9 @@ def _parse_sample_size_value(value: Any) -> Optional[int]:
 
 
 def required_max_sample_size(
-    sizes: Optional[List[int]],
-    context: Optional[WorkflowContext],
-) -> Optional[int]:
+    sizes: list[int] | None,
+    context: WorkflowContext | None,
+) -> int | None:
     """Return the maximum sample size required by the workflow matrix.
 
     Candidate sizes come from the complete matrix definition
@@ -143,7 +143,7 @@ def required_max_sample_size(
     Returns:
         The maximum sample size, or None when none is known.
     """
-    candidates: List[int] = []
+    candidates: list[int] = []
     if context is not None:
         matrix = getattr(context, "matrix", None)
         if isinstance(matrix, dict):
@@ -160,10 +160,10 @@ def required_max_sample_size(
 
 def load_cached_data(
     input_path: str,
-    variable_types: Optional[Dict[str, Any]],
-    sizes: Optional[List[int]],
-    context: Optional[WorkflowContext],
-    randomise: Optional[List[str]] = None,
+    variable_types: dict[str, Any] | None,
+    sizes: list[int] | None,
+    context: WorkflowContext | None,
+    randomise: list[str] | None = None,
 ) -> NumPy:
     """Return a NumPy data object for the input, cached across jobs.
 

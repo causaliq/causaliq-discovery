@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import Mock
 
 import pandas as pd
@@ -260,11 +260,11 @@ def test_run_executes_java_and_parses_output(
     jar.write_text("dummy", encoding="utf-8")
     monkeypatch.setenv("CQ_JAVA_DIR", str(tmp_path))
 
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     def fake_run_java_jar(
         jar_path: str,
-        args: List[str],
+        args: list[str],
         timeout: int,
     ) -> str:
         captured["jar_path"] = jar_path
@@ -327,7 +327,7 @@ def test_run_with_trace_populates_scores(
 
     def fake_run_java_jar(
         _jar_path: str,
-        args: List[str],
+        args: list[str],
         timeout: int,
     ) -> str:
         del timeout

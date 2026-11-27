@@ -6,11 +6,7 @@ from pathlib import Path
 import pytest
 from causaliq_data.numpy import NumPy
 
-from causaliq_discovery.input import (
-    apply_sampling,
-    normalise_data,
-    read_data,
-)
+from causaliq_discovery.input import apply_sampling, normalise_data, read_data
 from causaliq_discovery.variable_type import VariableType
 
 DATA_DIR = Path("tests/data/functional")

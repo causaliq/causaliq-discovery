@@ -1,6 +1,6 @@
 """CausalIQ PackageAdapter for score-based HC algorithms."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 import pandas as pd
 from causaliq_core.graph import SDG
@@ -12,7 +12,7 @@ from causaliq_discovery.variable_type import VariableType
 
 # Map common 'bic' score name to the legacy hc() equivalent for
 # continuous data, where the Gaussian variant ('bic-g') is required.
-_CONTINUOUS_SCORE_MAP: Dict[str, str] = {
+_CONTINUOUS_SCORE_MAP: dict[str, str] = {
     "bic": "bic-g",
 }
 
@@ -31,10 +31,10 @@ class CausalIQHCAdapter(PackageAdapter):
     def convert_input(
         self,
         data: Union[pd.DataFrame, Data],
-        variable_types: Optional[Dict[str, VariableType]],
-        sample_size: Optional[int],
-        randomise: Optional[list],
-        seed: Optional[int],
+        variable_types: dict[str, VariableType] | None,
+        sample_size: int | None,
+        randomise: list | None,
+        seed: int | None,
     ) -> Any:
         """Return data unchanged — hc() accepts any Data object.
 
@@ -59,9 +59,9 @@ class CausalIQHCAdapter(PackageAdapter):
         self,
         converted_data: Data,
         algorithm: str,
-        mapped_hyperparameters: Dict[str, Any],
+        mapped_hyperparameters: dict[str, Any],
         trace: bool = False,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> Any:
         """Run hc() with parameters appropriate for the algorithm.
 
@@ -90,7 +90,7 @@ class CausalIQHCAdapter(PackageAdapter):
         Returns:
             Tuple (DAG, Trace|None) as returned by hc().
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if algorithm in ("hc-stable", "tabu-stable"):
             params["stable"] = "score+"
         is_continuous = converted_data.dstype == "continuous"
@@ -105,7 +105,7 @@ class CausalIQHCAdapter(PackageAdapter):
         if timeout is not None:
             params["max_elapsed"] = timeout
 
-        context: Optional[Dict[str, Any]] = {} if trace else None
+        context: dict[str, Any] | None = {} if trace else None
         return hc(converted_data, params=params, context=context)
 
     def convert_output(self, raw_output: Any) -> SDG:
@@ -123,7 +123,7 @@ class CausalIQHCAdapter(PackageAdapter):
         dag, _trace = raw_output
         return dag  # type: ignore[no-any-return]
 
-    def build_trace(self, raw_output: Any) -> Optional[List[Dict[str, Any]]]:
+    def build_trace(self, raw_output: Any) -> list[dict[str, Any]] | None:
         """Convert legacy Trace object to score_steps format.
 
         Extracts all steps from the legacy Trace (including init and
@@ -148,7 +148,7 @@ class CausalIQHCAdapter(PackageAdapter):
             arc = t["arc"][i]
             arc_change = None if arc is None else list(arc)
             act2 = t["activity_2"][i]
-            step: Dict[str, Any] = {
+            step: dict[str, Any] = {
                 "time": round(t["time"][i], 2),
                 "arc_change": arc_change,
                 "operation": activity,

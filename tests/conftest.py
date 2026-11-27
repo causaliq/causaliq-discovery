@@ -3,10 +3,7 @@
 import os
 
 import pytest
-from causaliq_core.r.availability import (
-    is_r_available,
-    is_r_package_available,
-)
+from causaliq_core.r.availability import is_r_available, is_r_package_available
 
 
 @pytest.fixture(autouse=True)

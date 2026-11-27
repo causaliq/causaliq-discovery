@@ -1,6 +1,6 @@
 """Unit tests for CausalIQHCAdapter.build_trace()."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from causaliq_discovery.algorithms.causaliq_hc import CausalIQHCAdapter
 from causaliq_discovery.errors import (
@@ -14,16 +14,16 @@ from causaliq_discovery.errors import (
 class _MockTrace:
     """Minimal stand-in for causaliq_analysis.Trace."""
 
-    def __init__(self, trace_dict: Dict[str, List[Any]]) -> None:
+    def __init__(self, trace_dict: dict[str, list[Any]]) -> None:
         self.trace = trace_dict
 
 
-def _make_raw(trace_obj: Optional[_MockTrace]) -> Any:
+def _make_raw(trace_obj: _MockTrace | None) -> Any:
     """Return a (dag, trace) tuple with a None dag placeholder."""
     return (None, trace_obj)
 
 
-def _trace_with(*rows: Dict[str, Any]) -> _MockTrace:
+def _trace_with(*rows: dict[str, Any]) -> _MockTrace:
     """Build a MockTrace from a list of per-step field dicts."""
     keys = [
         "activity",
@@ -34,7 +34,7 @@ def _trace_with(*rows: Dict[str, Any]) -> _MockTrace:
         "arc_2",
         "delta_2",
     ]
-    result: Dict[str, List[Any]] = {k: [] for k in keys}
+    result: dict[str, list[Any]] = {k: [] for k in keys}
     for row in rows:
         for k in keys:
             result[k].append(row.get(k))
@@ -250,7 +250,7 @@ class _MockDiscreteData:
 
 # run forwards the timeout (seconds) to hc() as max_elapsed.
 def test_run_passes_timeout_as_max_elapsed(mocker: Any) -> None:
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     def _fake_hc(
         data, params=None, knowledge=False, context=None, init_cache=True
@@ -273,7 +273,7 @@ def test_run_passes_timeout_as_max_elapsed(mocker: Any) -> None:
 
 # run omits max_elapsed when no timeout is given.
 def test_run_omits_max_elapsed_without_timeout(mocker: Any) -> None:
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     def _fake_hc(
         data, params=None, knowledge=False, context=None, init_cache=True

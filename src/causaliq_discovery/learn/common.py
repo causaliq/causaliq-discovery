@@ -1,7 +1,7 @@
 # Common definitions and classes required by other learn modules
 
 from copy import deepcopy
-from typing import Any, Dict, List, Set
+from typing import Any, Set
 
 from causaliq_core.utils import EnumWithAttrs
 
@@ -30,7 +30,7 @@ class TreeStats:
         """
         Initialises the tree statistics
         """
-        self.sequences: Dict[str, Any] = {}
+        self.sequences: dict[str, Any] = {}
 
     def add(self, hcw: Any, depth: int) -> None:
         """
@@ -71,7 +71,7 @@ class TreeStats:
         """
         self.sequences[self.key(hcw)].update({"state": state})
 
-    def update_ranks(self, hcws: List[Any]) -> None:
+    def update_ranks(self, hcws: list[Any]) -> None:
         """
         Update ranks of unpruned sequences.
 

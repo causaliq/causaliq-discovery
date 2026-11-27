@@ -1,9 +1,10 @@
 """causaliq-discovery: Causal graph discovery from data."""
 
 import math
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Union
 
 import pandas as pd
+from causaliq_data import Data
 
 from causaliq_discovery.data_cache import load_cached_reference
 from causaliq_discovery.errors import LearningError
@@ -30,9 +31,9 @@ VERSION = (0, 2, 0)
 
 
 def _rename_trace_arc(
-    step: Dict[str, Any],
+    step: dict[str, Any],
     key: str,
-    name_map: Dict[str, str],
+    name_map: dict[str, str],
 ) -> None:
     """Rename node names in a trace arc list in place.
 
@@ -47,18 +48,18 @@ def _rename_trace_arc(
 
 
 def learn_graph(
-    data: Union[str, pd.DataFrame],
+    data: Union[str, pd.DataFrame, Data],
     algorithm: str,
-    output: Optional[str] = None,
-    hyperparameters: Optional[Dict[str, Any]] = None,
+    output: str | None = None,
+    hyperparameters: dict[str, Any] | None = None,
     trace: bool = False,
-    variable_types: Optional[Union[str, Dict[str, VariableType]]] = None,
-    sample_size: Optional[int] = None,
-    variant: Optional[str] = None,
-    knowledge: Optional[Any] = None,
-    randomise: Optional[Union[str, List[str]]] = None,
-    seed: Optional[int] = None,
-    reference: Optional[str] = None,
+    variable_types: Union[str, dict[str, VariableType]] | None = None,
+    sample_size: int | None = None,
+    variant: str | None = None,
+    knowledge: Any | None = None,
+    randomise: Union[str, list[str]] | None = None,
+    seed: int | None = None,
+    reference: str | None = None,
     timeout: Union[float, int] = DEFAULT_TIMEOUT_MINUTES,
 ) -> DiscoveryResult:
     """Learn a causal graph from data.
@@ -135,7 +136,7 @@ def learn_graph(
 
     # The off token requests no randomisation; normalise it once so that
     # every later caller sees a list of options or None.
-    options: Optional[List[str]] = resolve_randomise(randomise)
+    options: list[str] | None = resolve_randomise(randomise)
 
     # Validate algorithm and variant against registry.
     spec = AlgorithmRegistry.get_spec(algorithm, variant)
@@ -161,7 +162,7 @@ def learn_graph(
 
         # Load the reference network and derive the topological order
         # once when var_best/var_worst is requested.
-        topo_order: Optional[Tuple[str, ...]] = None
+        topo_order: tuple[str, ...] | None = None
         active_randomise = set(options or [])
         if active_randomise & {"var_best", "var_worst"}:
             assert reference is not None  # guaranteed by validate_reference
@@ -183,14 +184,14 @@ def learn_graph(
 
         # Build merged hyperparameters: spec defaults overlaid with
         # any user-supplied values.
-        effective_hp: Dict[str, Any] = {
+        effective_hp: dict[str, Any] = {
             **spec.hyperparameter_defaults,
             **(hyperparameters or {}),
         }
 
         # Translate common names to package-specific names.
         name_map = spec.hyperparameter_name_map
-        mapped_hp: Dict[str, Any] = {
+        mapped_hp: dict[str, Any] = {
             name_map.get(k, k): v for k, v in effective_hp.items()
         }
 
@@ -204,7 +205,7 @@ def learn_graph(
         )
         graph = adapter.convert_output(raw_output)
 
-        metadata: Dict[str, Any] = {
+        metadata: dict[str, Any] = {
             "algorithm": algorithm,
             "variant": spec.variant,
             "hyperparameters": effective_hp,

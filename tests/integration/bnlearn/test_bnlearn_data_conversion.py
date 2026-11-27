@@ -9,7 +9,7 @@ Mark: ``@pytest.mark.r_integration``
 
 import tempfile
 from pathlib import Path
-from typing import Iterator, Optional, Tuple
+from typing import Iterator
 
 import numpy as np
 import pytest
@@ -38,9 +38,9 @@ class _MockData:
     def __init__(
         self,
         sample: np.ndarray,
-        nodes: Tuple[str, ...],
+        nodes: tuple[str, ...],
         dstype: str,
-        order: Optional[Tuple[int, ...]] = None,
+        order: tuple[int, ...] | None = None,
     ) -> None:
         self.sample = sample
         self.nodes = nodes
@@ -50,7 +50,7 @@ class _MockData:
         self.ext_to_orig = {n: n for n in nodes}
         self.orig_to_ext = {n: n for n in nodes}
 
-    def get_order(self) -> Tuple[str, ...]:
+    def get_order(self) -> tuple[str, ...]:
         """Return external names in process order."""
         return tuple(self.orig_to_ext[self.nodes[i]] for i in self.order)
 

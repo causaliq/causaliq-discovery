@@ -5,17 +5,7 @@ import re
 import tempfile
 from datetime import datetime
 from importlib import import_module
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    TypedDict,
-    Union,
-    cast,
-)
+from typing import Any, Callable, TypedDict, Union, cast
 from uuid import uuid4
 
 import pandas as pd
@@ -46,10 +36,10 @@ class TetradRunOutput(TypedDict):
     """Typed raw output structure returned by TetradAdapter.run."""
 
     graph: SDG
-    elapsed_seconds: Optional[float]
+    elapsed_seconds: float | None
     stdout: str
-    init_score: Optional[float]
-    final_score: Optional[float]
+    init_score: float | None
+    final_score: float | None
 
 
 class TetradAdapter(PackageAdapter):
@@ -62,11 +52,11 @@ class TetradAdapter(PackageAdapter):
     def convert_input(
         self,
         data: Union[pd.DataFrame, Data],
-        variable_types: Optional[Dict[str, VariableType]],
-        sample_size: Optional[int],
-        randomise: Optional[list],
-        seed: Optional[int],
-    ) -> Dict[str, Any]:
+        variable_types: dict[str, VariableType] | None,
+        sample_size: int | None,
+        randomise: list | None,
+        seed: int | None,
+    ) -> dict[str, Any]:
         """Convert input to a DataFrame consumable by causal-cmd.
 
         Args:
@@ -94,11 +84,11 @@ class TetradAdapter(PackageAdapter):
 
     def run(
         self,
-        converted_data: Dict[str, Any],
+        converted_data: dict[str, Any],
         algorithm: str,
-        mapped_hyperparameters: Dict[str, Any],
+        mapped_hyperparameters: dict[str, Any],
         trace: bool = False,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> TetradRunOutput:
         """Run causal-cmd and parse the output graph file.
 
@@ -128,7 +118,7 @@ class TetradAdapter(PackageAdapter):
         jar_path = _resolve_causal_cmd_jar()
         frame: pd.DataFrame = converted_data["frame"]
         dstype: str = converted_data["dstype"]
-        nodes: List[str] = converted_data["nodes"]
+        nodes: list[str] = converted_data["nodes"]
 
         params = mapped_hyperparameters.copy()
 
@@ -160,8 +150,8 @@ class TetradAdapter(PackageAdapter):
             out_path = _resolve_output_file(tmpdir, prefix)
             graph, elapsed = _parse_output(out_path, nodes)
 
-        init_score: Optional[float] = None
-        final_score: Optional[float] = None
+        init_score: float | None = None
+        final_score: float | None = None
         if trace:
             score_name = _score_name(dstype, params.get("score", "bic"))
             init_score, final_score = _graph_scores(
@@ -188,7 +178,7 @@ class TetradAdapter(PackageAdapter):
 
     def build_trace(
         self, raw_output: TetradRunOutput
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         """Build a minimal trace with init and stop records.
 
         Tetrad does not expose step-by-step arc operations in causal-cmd
@@ -251,11 +241,11 @@ def _score_name(dstype: str, score_name: str) -> str:
 
 def _graph_scores(
     frame: pd.DataFrame,
-    nodes: List[str],
+    nodes: list[str],
     score_name: str,
-    score_params: Dict[str, Any],
+    score_params: dict[str, Any],
     learnt_graph: SDG,
-) -> Tuple[Optional[float], Optional[float]]:
+) -> tuple[float | None, float | None]:
     """Compute initial-empty and learnt-graph scores for Tetrad trace."""
     params = score_params.copy()
     params.update({"unistate_ok": True})
@@ -305,7 +295,7 @@ def _resolve_causal_cmd_jar() -> str:
     return jar_path
 
 
-def _run_java_jar(jar_path: str, args: List[str], timeout: int) -> str:
+def _run_java_jar(jar_path: str, args: list[str], timeout: int) -> str:
     """Run causal-cmd via causaliq-core Java runner.
 
     Raises:
@@ -325,11 +315,11 @@ def _run_java_jar(jar_path: str, args: List[str], timeout: int) -> str:
             "causaliq_core.java does not expose run_java_jar. "
             "Install a compatible causaliq-core version."
         )
-    runner = cast(Callable[[str, List[str], int], str], run_java_jar)
+    runner = cast(Callable[[str, list[str], int], str], run_java_jar)
     return runner(jar_path, args, timeout)
 
 
-def _build_fges_params(dstype: str, params: Dict[str, Any]) -> List[str]:
+def _build_fges_params(dstype: str, params: dict[str, Any]) -> list[str]:
     """Map common FGES params to causal-cmd arguments.
 
     Args:
@@ -400,12 +390,12 @@ def _resolve_output_file(tmpdir: str, prefix: str) -> str:
     )
 
 
-def _parse_output(path: str, nodes: List[str]) -> Tuple[SDG, Optional[float]]:
+def _parse_output(path: str, nodes: list[str]) -> tuple[SDG, float | None]:
     """Parse Tetrad output file into an SDG/DAG/PDAG graph."""
     edges_section = False
-    edges: List[Tuple[str, str, str]] = []
-    start: Optional[datetime] = None
-    elapsed: Optional[float] = None
+    edges: list[tuple[str, str, str]] = []
+    start: datetime | None = None
+    elapsed: float | None = None
 
     with open(path, encoding="utf-8") as handle:
         for raw_line in handle:
@@ -447,7 +437,7 @@ def _parse_output(path: str, nodes: List[str]) -> Tuple[SDG, Optional[float]]:
     raise RuntimeError("Tetrad output did not produce a DAG or PDAG graph.")
 
 
-def _edge_from_match(match: Tuple[str, str, str, str]) -> Tuple[str, str, str]:
+def _edge_from_match(match: tuple[str, str, str, str]) -> tuple[str, str, str]:
     """Convert edge regex groups to internal edge tuple."""
     node1, ep1, ep2, node2 = match
 

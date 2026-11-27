@@ -1,6 +1,6 @@
 # Encapsulates changes to a DAG made during structure learning
 
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Iterator
 
 from causaliq_analysis.graph import GraphAction
 
@@ -25,9 +25,9 @@ class DAGChange:
     def __init__(
         self,
         activity: GraphAction,
-        arc: Optional[Tuple[str, str]] = None,
-        delta: Optional[float] = None,
-        counts: Optional[Dict[str, Any]] = None,
+        arc: tuple[str, str] | None = None,
+        delta: float | None = None,
+        counts: dict[str, Any] | None = None,
     ) -> None:
         if (
             not isinstance(activity, GraphAction)
@@ -95,8 +95,8 @@ class BestDAGChanges:
 
     def __init__(
         self,
-        top: Optional["DAGChange"] = DAGChange(GraphAction.STOP),
-        second: Optional["DAGChange"] = None,
+        top: "DAGChange | None" = DAGChange(GraphAction.STOP),
+        second: "DAGChange | None" = None,
     ) -> None:
         if (top is not None and not isinstance(top, DAGChange)) or (
             second is not None and not isinstance(second, DAGChange)

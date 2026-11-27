@@ -4,7 +4,7 @@ import math
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Iterator
 
 import numpy as np
 import pytest
@@ -17,6 +17,7 @@ from causaliq_discovery.algorithms.bnlearn import (
     _build_simple_call,
     _parse_hc_trace,
     _r_literal,
+    _write_temp_datafile,
 )
 from causaliq_discovery.errors import (
     LearningInputError,
@@ -52,9 +53,9 @@ class _MockData:
     def __init__(
         self,
         sample: np.ndarray,
-        nodes: Tuple[str, ...],
+        nodes: tuple[str, ...],
         dstype: str,
-        order: Optional[Tuple[int, ...]] = None,
+        order: tuple[int, ...] | None = None,
     ) -> None:
         self.sample = sample
         self.nodes = nodes
@@ -64,7 +65,7 @@ class _MockData:
         self.ext_to_orig = {n: n for n in nodes}
         self.orig_to_ext = {n: n for n in nodes}
 
-    def get_order(self) -> Tuple[str, ...]:
+    def get_order(self) -> tuple[str, ...]:
         """Return external names in process order."""
         return tuple(self.orig_to_ext[self.nodes[i]] for i in self.order)
 
@@ -83,7 +84,7 @@ def _discrete_data(n_rows: int = 10) -> _MockData:
     return _MockData(sample, ("X", "Y"), "categorical")
 
 
-def _stdout_with_arcs(*arcs: Tuple[str, str]) -> str:
+def _stdout_with_arcs(*arcs: tuple[str, str]) -> str:
     """Build mock R stdout with given directed arcs."""
     arc_lines = "".join(f"{f}\t{t}\n" for f, t in arcs)
     return f"---ARCS---\n{arc_lines}"
@@ -339,7 +340,7 @@ def test_convert_input_code_size_independent_of_rows() -> None:
 
 def _make_converted(
     dstype: str = "continuous", n_rows: int = 100
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return a minimal convert_input result dict."""
     return {
         "r_data_code": "df <- data.frame(A = c(1.0), B = c(2.0))",
@@ -369,9 +370,9 @@ def test_run_calls_run_r_script(mocker: Any) -> None:
 def test_run_applies_gaussian_suffix_to_bic_for_continuous(
     mocker: Any,
 ) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -388,9 +389,9 @@ def test_run_applies_gaussian_suffix_to_bic_for_continuous(
 def test_run_applies_gaussian_suffix_to_mi_for_continuous(
     mocker: Any,
 ) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -409,9 +410,9 @@ def test_run_applies_gaussian_suffix_to_mi_for_continuous(
 
 # run does not append -g suffix for categorical data.
 def test_run_no_gaussian_suffix_for_categorical(mocker: Any) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -431,9 +432,9 @@ def test_run_no_gaussian_suffix_for_categorical(mocker: Any) -> None:
 
 # run translates bdeu score to bde.
 def test_run_translates_bdeu_to_bde(mocker: Any) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -453,9 +454,9 @@ def test_run_translates_bdeu_to_bde(mocker: Any) -> None:
 
 # run transforms k using 0.5 * k * log(N) for discrete bic.
 def test_run_transforms_k_for_discrete_bic(mocker: Any) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -477,9 +478,9 @@ def test_run_transforms_k_for_discrete_bic(mocker: Any) -> None:
 
 # run does not transform k for bic-g (continuous bic).
 def test_run_does_not_transform_k_for_bic_g(mocker: Any) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -500,9 +501,9 @@ def test_run_does_not_transform_k_for_bic_g(mocker: Any) -> None:
 
 # run passes the timeout (seconds) through to run_r_script.
 def test_run_passes_timeout_to_run_r_script(mocker: Any) -> None:
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         captured["timeout"] = timeout
         return "---ARCS---\n"
@@ -523,9 +524,9 @@ def test_run_passes_timeout_to_run_r_script(mocker: Any) -> None:
 
 # run includes debug = TRUE in script when trace=True.
 def test_run_includes_debug_when_trace(mocker: Any) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -540,9 +541,9 @@ def test_run_includes_debug_when_trace(mocker: Any) -> None:
 
 # run does not include debug when trace=False.
 def test_run_no_debug_when_trace_false(mocker: Any) -> None:
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def _capture(script: str, timeout: Optional[int] = None) -> str:
+    def _capture(script: str, timeout: int | None = None) -> str:
         captured["script"] = script
         return "---ARCS---\n"
 
@@ -615,8 +616,8 @@ def test_run_without_data_file(mocker: Any) -> None:
 def _raw_output(
     stdout: str,
     algorithm: str = "hc",
-    nodes: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    nodes: list[str] | None = None,
+) -> dict[str, Any]:
     """Build a minimal raw_output dict as returned by run."""
     return {
         "stdout": stdout,
@@ -858,3 +859,20 @@ def test_translate_error_generic_r_internal() -> None:
 def test_translate_error_unknown_internal() -> None:
     result = BnlearnAdapter().translate_error(RuntimeError("boom"))
     assert isinstance(result, LearningInternalError)
+
+
+# A failed datafile write removes the temporary file and re-raises.
+def test_write_temp_datafile_removes_the_file_on_failure(
+    mocker: Any,
+) -> None:
+    mocker.patch(
+        "causaliq_discovery.algorithms.bnlearn.write_r_datafile",
+        side_effect=OSError("boom"),
+    )
+    before = set(Path(tempfile.gettempdir()).glob("causaliq_*.csv"))
+
+    with pytest.raises(OSError, match="boom"):
+        _write_temp_datafile([[1]], ["x"])
+
+    after = set(Path(tempfile.gettempdir()).glob("causaliq_*.csv"))
+    assert after == before

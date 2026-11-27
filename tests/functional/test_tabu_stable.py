@@ -8,7 +8,6 @@ services or network dependencies — data is generated in-memory).
 """
 
 from pathlib import Path
-from typing import List
 
 import pytest
 from causaliq_core.bn.io import read_bn
@@ -19,7 +18,7 @@ from causaliq_discovery import DiscoveryResult, learn_graph
 _ASIA_DSC = str(
     Path(__file__).parent.parent / "data" / "integration" / "asia.dsc"
 )
-_ASIA_NODES: List[str] = [
+_ASIA_NODES: list[str] = [
     "asia",
     "bronc",
     "dysp",
