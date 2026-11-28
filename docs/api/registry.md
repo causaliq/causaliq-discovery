@@ -16,7 +16,7 @@ registered separately when their implementation modules are imported.
 #### algorithms()
 
 ```python
-AlgorithmRegistry.algorithms() -> List[str]
+AlgorithmRegistry.algorithms() -> list[str]
 ```
 
 Return a sorted list of all registered algorithm names.
@@ -31,7 +31,7 @@ Return a sorted list of all registered algorithm names.
 #### variants(algorithm)
 
 ```python
-AlgorithmRegistry.variants(algorithm: str) -> List[str]
+AlgorithmRegistry.variants(algorithm: str) -> list[str]
 ```
 
 Return a sorted list of variant names for the given algorithm.
@@ -50,7 +50,7 @@ Raises `ValueError` if the algorithm is not registered.
 ```python
 AlgorithmRegistry.get_spec(
     algorithm: str,
-    variant: Optional[str],
+    variant: str | None,
 ) -> AlgorithmSpec
 ```
 
@@ -67,7 +67,7 @@ Raises `ValueError` if the algorithm or variant is not registered.
 ```python
 AlgorithmRegistry.get_adapter(
     algorithm: str,
-    variant: Optional[str],
+    variant: str | None,
 ) -> Type[PackageAdapter]
 ```
 
@@ -120,9 +120,9 @@ class AlgorithmSpec:
     description: str
     graph_type: str
     supported_hyperparameters: Set[str] = ...
-    hyperparameter_defaults: Dict[str, Any] = ...
-    hyperparameter_name_map: Dict[str, str] = ...
-    hyperparameter_value_map: Dict[str, Dict[Any, Any]] = ...
+    hyperparameter_defaults: dict[str, Any] = ...
+    hyperparameter_name_map: dict[str, str] = ...
+    hyperparameter_value_map: dict[str, dict[Any, Any]] = ...
     paper_ref: str = ""
     paper_url: str = ""
     algorithm_class: str = ""
@@ -138,9 +138,9 @@ class AlgorithmSpec:
 | `description` | `str` | Human-readable description of the algorithm. |
 | `graph_type` | `str` | Type of graph produced, e.g. `"DAG"` or `"CPDAG"`. |
 | `supported_hyperparameters` | `Set[str]` | Common hyperparameter names accepted by this variant. |
-| `hyperparameter_defaults` | `Dict[str, Any]` | Default value for each supported hyperparameter, keyed by common name. |
-| `hyperparameter_name_map` | `Dict[str, str]` | Mapping from common hyperparameter name to the package-specific argument name. Omitted entries use the common name unchanged. |
-| `hyperparameter_value_map` | `Dict[str, Dict]` | Mapping from common hyperparameter value to the package-specific value, keyed by common name then common value. |
+| `hyperparameter_defaults` | `dict[str, Any]` | Default value for each supported hyperparameter, keyed by common name. |
+| `hyperparameter_name_map` | `dict[str, str]` | Mapping from common hyperparameter name to the package-specific argument name. Omitted entries use the common name unchanged. |
+| `hyperparameter_value_map` | `dict[str, dict]` | Mapping from common hyperparameter value to the package-specific value, keyed by common name then common value. |
 | `paper_ref` | `str` | Bibliographic reference for the original paper. |
 | `paper_url` | `str` | URL to the original paper. |
 | `algorithm_class` | `str` | Algorithmic class: `"score"`, `"constraint"`, or `"hybrid"`. |
@@ -166,8 +166,8 @@ class HyperparameterSpec:
     category: str
     type: str
     description: str
-    valid_values: Optional[List[str]] = None
-    default_display: Optional[str] = None
+    valid_values: list[str] | None = None
+    default_display: str | None = None
 ```
 
 ### Attributes
@@ -178,5 +178,5 @@ class HyperparameterSpec:
 | `category` | `str` | Logical group: `"score"`, `"constraint"`, or `"general"`. |
 | `type` | `str` | Python type name: `"int"`, `"float"`, or `"str"`. |
 | `description` | `str` | Short one-line description. |
-| `valid_values` | `List[str] \| None` | Enumerated valid values, or `None` if any value of the declared type is accepted. |
+| `valid_values` | `list[str] \| None` | Enumerated valid values, or `None` if any value of the declared type is accepted. |
 | `default_display` | `str \| None` | Display string for the default shown in `cqdisc describe`, e.g. `"No limit"`. |

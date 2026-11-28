@@ -1,6 +1,6 @@
 # CausalIQ Discovery - Development Roadmap
 
-**Last updated**: October 21, 2026
+**Last updated**: November 27, 2026
 
 This project roadmap fits into the [overall ecosystem roadmap](https:/https://causaliq.org/projects/ecosystem_roadmap/)
 
@@ -35,8 +35,8 @@ knowledge guidance with the following commit sequence:
 1. 🛣️ [Investigate poor performance](current_task.md)
 1. 🛣️ `learn_graph` should report correct graph type, and initial and final score.
 * 🛣️ Refactor large modules e.g. `workflow_action`, remove code from init.py1.
-* 🛣️ Support Python 3.10-14, with 3.12 as default
-* 🛣️ Adopt SPEC 0 minimum dependency versions and badge
+* ✅ Support Python 3.10-14, with 3.12 as default
+* ✅ Adopt SPEC 0 minimum dependency versions and badge
 ---
 
 ## ✅ Previous Releases

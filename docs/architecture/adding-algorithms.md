@@ -90,7 +90,7 @@ class MyPkgAdapter(PackageAdapter):
         algorithm: str,
         mapped_hyperparameters: ...,
         trace: bool = False,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> ...:
         ...
 
@@ -134,7 +134,7 @@ If the algorithm requires a hyperparameter that is not yet in
 `HYPERPARAMETER_SPECS`, add an entry:
 
 ```python
-HYPERPARAMETER_SPECS: Dict[str, HyperparameterSpec] = {
+HYPERPARAMETER_SPECS: dict[str, HyperparameterSpec] = {
     ...
     "my_new_hp": HyperparameterSpec(
         name="my_new_hp",

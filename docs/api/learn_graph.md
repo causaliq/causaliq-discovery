@@ -13,16 +13,16 @@ Run a structure learning algorithm on a dataset and return a
 def learn_graph(
     data: Union[str, pd.DataFrame],
     algorithm: str,
-    output: Optional[str] = None,
-    hyperparameters: Optional[Dict[str, Any]] = None,
+    output: str | None = None,
+    hyperparameters: dict[str, Any] | None = None,
     trace: bool = False,
-    variable_types: Optional[Union[str, Dict[str, VariableType]]] = None,
-    sample_size: Optional[int] = None,
-    variant: Optional[str] = None,
-    knowledge: Optional[Any] = None,
-    randomise: Optional[Union[str, List[str]]] = None,
-    seed: Optional[int] = None,
-    reference: Optional[str] = None,
+    variable_types: Union[str, dict[str, VariableType]] | None = None,
+    sample_size: int | None = None,
+    variant: str | None = None,
+    knowledge: Any | None = None,
+    randomise: Union[str, list[str]] | None = None,
+    seed: int | None = None,
+    reference: str | None = None,
     timeout: Union[float, int] = 60,
 ) -> DiscoveryResult
 ```
@@ -88,8 +88,8 @@ Dataclass holding the output of a `learn_graph` call.
 @dataclass
 class DiscoveryResult:
     graph: SDG
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    trace: Optional[List[Dict[str, Any]]] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    trace: list[dict[str, Any]] | None = None
 ```
 
 ### Attributes
